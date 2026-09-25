@@ -63,3 +63,8 @@ Early development. The protocol and driver internals are not yet stable.
 C4Bridge is an independent open-source project and is not affiliated with or endorsed by Control4 or Snap One.
 
 Installing third-party drivers or modifying a Control4 project can introduce compatibility, support, warranty, or recovery risks. Users are responsible for understanding those risks and should keep appropriate backups of their Control4 project.
+
+
+## License
+
+C4Bridge is licensed under the **Apache License 2.0**. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
