@@ -30,8 +30,9 @@ local function sortedIds(values)
 end
 
 local function locationKind(rawType)
-    if type(rawType) == "number" then
-        return LOCATION_TYPES[rawType] or ("type_" .. tostring(rawType))
+    local numericType = tonumber(rawType)
+    if numericType then
+        return LOCATION_TYPES[numericType] or ("type_" .. tostring(numericType))
     end
 
     local value = string.lower(tostring(rawType or ""))
@@ -113,15 +114,16 @@ local function normalizeLinkTable(raw)
     return result
 end
 
-function Normalize.devices(rawDevices)
+function Normalize.devices(rawDevices, bridgeDeviceId)
     local entities = {}
     local protocols = {}
+    bridgeDeviceId = toId(bridgeDeviceId)
 
     -- First collect backing protocol devices. They are retained internally
     -- but are not duplicated in the homeowner-facing entity list.
     for rawId, raw in pairs(rawDevices or {}) do
         local id = toId(rawId)
-        if id and type(raw) == "table" and type(raw.proxies) == "table" and next(raw.proxies) ~= nil then
+        if id and id ~= bridgeDeviceId and type(raw) == "table" and type(raw.proxies) == "table" and next(raw.proxies) ~= nil then
             protocols[id] = {
                 id = id,
                 name = raw.deviceName,
@@ -135,7 +137,7 @@ function Normalize.devices(rawDevices)
 
     for rawId, raw in pairs(rawDevices or {}) do
         local id = toId(rawId)
-        if id and type(raw) == "table" then
+        if id and id ~= bridgeDeviceId and type(raw) == "table" then
             local hasProtocol = type(raw.protocol) == "table" and next(raw.protocol) ~= nil
             local isBackingProtocol = type(raw.proxies) == "table" and next(raw.proxies) ~= nil
 
@@ -171,7 +173,7 @@ end
 function Normalize.project(raw)
     local rawDevices = raw.devices or {}
     local locations = Normalize.locations(raw.hierarchy or {}, rawDevices)
-    local devices, protocols = Normalize.devices(rawDevices)
+    local devices, protocols = Normalize.devices(rawDevices, (raw.metadata or {}).bridgeDeviceId)
 
     local rooms = {}
     for id, location in pairs(locations) do
