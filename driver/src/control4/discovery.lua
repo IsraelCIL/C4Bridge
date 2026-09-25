@@ -1,25 +1,61 @@
 local Discovery = {}
 
--- Discovery deliberately runs after Director has loaded the full project.
--- Do not call project-wide discovery APIs from OnDriverInit.
+local PROJECT_PROPERTIES = {
+    "Latitude",
+    "Longitude",
+    "CountryCode",
+    "CountryName",
+    "CityName",
+    "ZipCode",
+    "Use24HourClock",
+    "TemperatureScale",
+}
 
-function Discovery.readProjectXml()
-    return C4:GetProjectItems("ALL")
+local function safeCall(fn)
+    local ok, result = pcall(fn)
+    if ok then
+        return result
+    end
+    return nil
 end
 
-function Discovery.readLocationsXml()
-    return C4:GetProjectItems("LOCATIONS", "LIMIT_DEVICE_DATA")
+function Discovery.readProjectMetadata()
+    local metadata = {
+        timezone = safeCall(function()
+            return C4:GetTimeZone()
+        end),
+        systemType = safeCall(function()
+            return C4:GetSystemType()
+        end),
+        bootId = safeCall(function()
+            return C4:GetBootID()
+        end),
+        properties = {},
+    }
+
+    for _, propertyName in ipairs(PROJECT_PROPERTIES) do
+        metadata.properties[propertyName] = safeCall(function()
+            return C4:GetProjectProperty(propertyName)
+        end)
+    end
+
+    return metadata
 end
 
-function Discovery.readDevicesXml()
-    return C4:GetProjectItems("DEVICES", "PROXIES")
+function Discovery.readHierarchy()
+    return C4:GetProjectHierarchy() or {}
 end
 
-function Discovery.collectRaw()
+function Discovery.readDevices()
+    -- An empty filter table is documented to return all project devices.
+    return C4:GetDevices({}) or {}
+end
+
+function Discovery.collect()
     return {
-        projectXml = Discovery.readProjectXml(),
-        locationsXml = Discovery.readLocationsXml(),
-        devicesXml = Discovery.readDevicesXml(),
+        metadata = Discovery.readProjectMetadata(),
+        hierarchy = Discovery.readHierarchy(),
+        devices = Discovery.readDevices(),
     }
 end
 
