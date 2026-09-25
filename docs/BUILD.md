@@ -1,45 +1,55 @@
 # Building C4Bridge.c4z
 
-C4Bridge uses the standard Control4/Snap One `.c4z` package layout:
+A C4Z is a ZIP-based Control4 driver package. C4Bridge packages `driver.xml`, `driver.lua`, and the Lua modules under `driver/src/` at the archive root.
 
-- `driver.xml` at the package root
-- `driver.lua` at the package root
-- additional Lua modules under `src/`
+## Recommended local build
 
-The entrypoint is declared by `driver.xml`:
+From the repository root:
 
-```xml
-<script file="driver.lua"></script>
+```bash
+python scripts/build.py
 ```
 
-and `driver.lua` loads the implementation with:
+Output:
 
-```lua
-require("src.main")
+```text
+dist/C4Bridge.c4z
 ```
 
-## Official Driver Packager
+The archive layout is:
 
-The source manifest is:
+```text
+driver.xml
+driver.lua
+src/
+  main.lua
+  core/
+  control4/
+  adapters/
+```
+
+## Driver Packager
+
+The source manifest is also retained at:
 
 ```text
 driver/C4Bridge.c4zproj
 ```
 
-It is compatible with Snap One's Driver Packager. Build output should be named:
+so the project can be opened/packaged with Snap One's Driver Packager tooling if desired.
 
-```text
-C4Bridge.c4z
-```
-
-No encryption or Lua squishing is enabled during early development so that logs and package contents remain easy to inspect.
+No Lua squishing or encryption is used during early development so package contents and errors remain easy to inspect.
 
 ## Minimum Director version
 
-The package declares:
+The driver declares:
 
 ```xml
 <minimum_os_version>3.3.0</minimum_os_version>
 ```
 
-C4Bridge also performs a runtime version check so an unsupported Director is rejected explicitly rather than failing later in discovery code.
+and also performs a runtime version check.
+
+## Release policy
+
+During early development, `dist/C4Bridge.c4z` may be committed as a convenience test build. Source files remain authoritative; the package should always be reproducible with `scripts/build.py`.
