@@ -24,6 +24,12 @@
         <readonly>true</readonly>
       </property>
       <property>
+        <name>Bridge Version</name>
+        <default></default>
+        <type>STRING</type>
+        <readonly>true</readonly>
+      </property>
+      <property>
         <name>Director Version</name>
         <default></default>
         <type>STRING</type>
