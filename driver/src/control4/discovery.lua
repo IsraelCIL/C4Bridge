@@ -30,6 +30,9 @@ function Discovery.readProjectMetadata()
         bootId = safeCall(function()
             return C4:GetBootID()
         end),
+        bridgeDeviceId = safeCall(function()
+            return C4:GetDeviceID()
+        end),
         properties = {},
     }
 
