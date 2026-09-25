@@ -28,7 +28,7 @@ C4Bridge itself does not depend on Composer Pro during normal operation. Compose
 
 ### 1. Download C4Bridge
 
-Download the latest `C4Bridge.c4z` from this repository.
+Download the current test build: **[C4Bridge.c4z](https://raw.githubusercontent.com/IsraelCIL/C4Bridge/main/dist/C4Bridge.c4z)**
 
 ### 2. Install Composer Pro
 
@@ -54,6 +54,7 @@ C4Bridge does not depend on this specific Composer version after the driver has 
 
 For the current discovery build, a successful install should show:
 
+- **Bridge Version:** current C4Bridge build
 - **Status:** `Ready (discovery complete)`
 - **Director Version:** your Director OS version
 - **System Type:** controller type reported by Director
