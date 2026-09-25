@@ -65,6 +65,7 @@ end
 function OnDriverLateInit(driverInitType)
     log("late init (" .. tostring(driverInitType) .. ")")
 
+    updateProperty("Bridge Version", Version.BRIDGE_VERSION)
     updateProperty("Director Version", STATE.directorVersion or "Unknown")
 
     if not STATE.supported then
