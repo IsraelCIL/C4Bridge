@@ -14,6 +14,7 @@ After Director loads the driver, select the C4Bridge instance in Composer.
 
 Expected:
 
+- **Bridge Version** = `0.1.0-alpha.1`
 - **Status** = `Ready (discovery complete)`
 - **Director Version** = actual Director version
 - **System Type** = controller type reported by Director
@@ -37,11 +38,12 @@ Recognized does **not** mean controllable yet. Step 3 implements and tests the f
 
 Please capture:
 
-1. Director Version
-2. System Type
-3. Project Location
-4. Discovery Summary
-5. Any C4Bridge error/status text
+1. Bridge Version
+2. Director Version
+3. System Type
+4. Project Location
+5. Discovery Summary
+6. Any C4Bridge error/status text
 
 A screenshot of the C4Bridge Properties pane is sufficient for the first pass.
 
