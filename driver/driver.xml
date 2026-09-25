@@ -16,10 +16,42 @@
 
   <config>
     <script file="driver.lua"></script>
+    <properties>
+      <property>
+        <name>Status</name>
+        <default>Starting...</default>
+        <type>STRING</type>
+        <readonly>true</readonly>
+      </property>
+      <property>
+        <name>Director Version</name>
+        <default></default>
+        <type>STRING</type>
+        <readonly>true</readonly>
+      </property>
+      <property>
+        <name>System Type</name>
+        <default></default>
+        <type>STRING</type>
+        <readonly>true</readonly>
+      </property>
+      <property>
+        <name>Project Location</name>
+        <default></default>
+        <type>STRING</type>
+        <readonly>true</readonly>
+      </property>
+      <property>
+        <name>Discovery Summary</name>
+        <default></default>
+        <type>STRING</type>
+        <readonly>true</readonly>
+      </property>
+    </properties>
   </config>
 
   <combo>true</combo>
   <proxies>
-    <proxy name="C4Bridge">C4Bridge</proxy>
+    <proxy>C4Bridge</proxy>
   </proxies>
 </devicedata>
