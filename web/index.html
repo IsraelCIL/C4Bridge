@@ -202,6 +202,24 @@
             <div id="climate-list" class="climate-list"></div>
           </article>
 
+          <article class="panel result-panel climate-panel security-panel">
+            <div class="lights-heading">
+              <div>
+                <p class="eyebrow">SECURITY</p>
+                <h2>Alarm status</h2>
+                <p class="panel-note">
+                  Read-only partition state from Director. Arming and disarming are not
+                  available over the V1 LAN API.
+                </p>
+              </div>
+              <button id="refresh-security-button" class="button button-secondary" type="button">
+                Refresh status
+              </button>
+            </div>
+            <p id="security-action-message" class="form-message" role="status" aria-live="polite"></p>
+            <div id="security-list" class="climate-list"></div>
+          </article>
+
           <div class="result-columns">
             <article class="panel result-panel">
               <h2>Rooms</h2>
