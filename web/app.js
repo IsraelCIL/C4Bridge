@@ -26,6 +26,9 @@ const refreshLightsButton = document.querySelector("#refresh-lights-button");
 const climateList = document.querySelector("#climate-list");
 const climateActionMessage = document.querySelector("#climate-action-message");
 const refreshClimateButton = document.querySelector("#refresh-climate-button");
+const coverList = document.querySelector("#cover-list");
+const coverActionMessage = document.querySelector("#cover-action-message");
+const refreshCoversButton = document.querySelector("#refresh-covers-button");
 
 let installPrompt = null;
 let activeSession = null;
@@ -175,6 +178,7 @@ function renderSummary(info) {
     ["Recognized", info.discovery?.recognized],
     ["Lights", info.discovery?.supported_lights],
     ["Climate", info.discovery?.supported_climate],
+    ["Covers", info.discovery?.supported_covers],
   ];
 
   resultSummary.replaceChildren(
@@ -624,12 +628,119 @@ function renderClimate(devices) {
   }
 }
 
+function setCoverMessage(message, type = "") {
+  coverActionMessage.textContent = message;
+  coverActionMessage.className = "form-message";
+  if (type) coverActionMessage.classList.add(type);
+}
+
+function coverStateLabel(device) {
+  const level = Number(device.state?.level);
+  const parts = [];
+  if (device.state?.fully_open) parts.push("Open");
+  else if (device.state?.fully_closed) parts.push("Closed");
+  else if (Number.isFinite(level)) parts.push(`${level}% open`);
+  if (device.state?.movement && device.state.movement !== "stopped") parts.push(device.state.movement);
+  return parts.join(" · ") || "State unavailable";
+}
+
+async function refreshCovers(showMessage = false) {
+  if (!activeSession) return [];
+  const response = await apiRequest(activeSession.host, activeSession.token, "/v1/covers");
+  const devices = Array.isArray(response.covers) ? response.covers : [];
+  renderCovers(devices);
+  if (showMessage) setCoverMessage(`Refreshed ${devices.length} covers.`, "success");
+  return devices;
+}
+
+async function runCoverAction(device, action, value, control) {
+  if (!activeSession) {
+    setCoverMessage("Connect to Director first.", "error");
+    return;
+  }
+  if (control) control.disabled = true;
+  setCoverMessage(`Sending command to ${device.name}…`);
+  try {
+    const query = value === undefined ? "" : `?value=${encodeURIComponent(value)}`;
+    await apiRequest(
+      activeSession.host,
+      activeSession.token,
+      `/v1/devices/${device.id}/actions/${action}${query}`,
+      { method: "POST" }
+    );
+    await new Promise((resolve) => window.setTimeout(resolve, 800));
+    await refreshCovers(false);
+    setCoverMessage(`${device.name}: command sent to Director.`, "success");
+  } catch (error) {
+    setCoverMessage(`${device.name}: ${error.message || "cover command failed"}`, "error");
+  } finally {
+    if (control) control.disabled = false;
+  }
+}
+
+function renderCovers(devices) {
+  coverList.replaceChildren();
+  if (!devices.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No supported Blind devices were initialized.";
+    coverList.append(empty);
+    return;
+  }
+
+  for (const device of devices) {
+    const row = document.createElement("div");
+    row.className = "climate-row";
+
+    const identity = document.createElement("div");
+    identity.className = "light-identity";
+    const name = document.createElement("strong");
+    name.textContent = text(device.name, `Cover ${device.id}`);
+    const meta = document.createElement("small");
+    meta.textContent = [device.room_name || null, `ID ${device.id}`].filter(Boolean).join(" · ");
+    const state = document.createElement("span");
+    state.className = "light-state";
+    state.textContent = coverStateLabel(device);
+    identity.append(name, meta, state);
+
+    const controls = document.createElement("div");
+    controls.className = "climate-controls";
+    for (const [action, label] of [["open", "Open"], ["stop", "Stop"], ["close", "Close"]]) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "button light-button";
+      button.textContent = label;
+      button.addEventListener("click", () => runCoverAction(device, action, undefined, button));
+      controls.append(button);
+    }
+
+    const level = document.createElement("input");
+    level.className = "climate-temp";
+    level.type = "number";
+    level.min = "0";
+    level.max = "100";
+    level.step = "5";
+    level.value = Number.isFinite(Number(device.state?.level)) ? String(device.state.level) : "";
+    level.setAttribute("aria-label", "Open percentage");
+    const setButton = document.createElement("button");
+    setButton.type = "button";
+    setButton.className = "button light-button";
+    setButton.textContent = "Set %";
+    setButton.addEventListener("click", () => runCoverAction(device, "set_level", level.value, setButton));
+    controls.append(level, setButton);
+
+    row.append(identity, controls);
+    coverList.append(row);
+  }
+}
+
 async function connectAndTest() {
   projectResult.classList.add("hidden");
   connectButton.disabled = true;
   setDirectorMessage("");
   setLightMessage("");
   setClimateMessage("");
+  setCoverMessage("");
   setConnectionState(
     "Connecting to Director…",
     "Chrome may ask for Local Network Access permission.",
@@ -660,11 +771,12 @@ async function connectAndTest() {
 
     const info = await apiRequest(host, token, "/v1/system/info");
 
-    const [roomsResponse, devicesResponse, lightsResponse, climateResponse] = await Promise.all([
+    const [roomsResponse, devicesResponse, lightsResponse, climateResponse, coversResponse] = await Promise.all([
       apiRequest(host, token, "/v1/rooms"),
       apiRequest(host, token, "/v1/devices"),
       apiRequest(host, token, "/v1/lights"),
       apiRequest(host, token, "/v1/climate"),
+      apiRequest(host, token, "/v1/covers"),
     ]);
 
     const rooms = Array.isArray(roomsResponse.rooms) ? roomsResponse.rooms : [];
@@ -677,18 +789,20 @@ async function connectAndTest() {
     const climate = Array.isArray(climateResponse.climate)
       ? climateResponse.climate
       : [];
+    const covers = Array.isArray(coversResponse.covers) ? coversResponse.covers : [];
 
     connectedVersion.textContent = `v${text(info.bridge?.version, "?")}`;
     renderSummary(info);
     renderLights(lights);
     renderClimate(climate);
+    renderCovers(covers);
     renderRooms(rooms);
     renderDevices(devices);
     projectResult.classList.remove("hidden");
 
     setConnectionState(
       "Connected to C4Bridge",
-      `${rooms.length} rooms, ${devices.length} normalized devices, ${lights.length} lights, and ${climate.length} climate devices returned directly from Director.`,
+      `${rooms.length} rooms, ${devices.length} normalized devices, ${lights.length} lights, ${climate.length} climate devices, and ${covers.length} covers returned directly from Director.`,
       "Connected"
     );
     setDirectorMessage("Director connection succeeded.", "success");
@@ -746,6 +860,18 @@ refreshClimateButton.addEventListener("click", async () => {
     setClimateMessage(error.message || "Unable to refresh climate state.", "error");
   } finally {
     refreshClimateButton.disabled = false;
+  }
+});
+
+refreshCoversButton.addEventListener("click", async () => {
+  refreshCoversButton.disabled = true;
+  setCoverMessage("Refreshing cover state…");
+  try {
+    await refreshCovers(true);
+  } catch (error) {
+    setCoverMessage(error.message || "Unable to refresh cover state.", "error");
+  } finally {
+    refreshCoversButton.disabled = false;
   }
 });
 

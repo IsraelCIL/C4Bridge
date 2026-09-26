@@ -66,6 +66,12 @@
         <readonly>true</readonly>
       </property>
       <property>
+        <name>Supported Covers</name>
+        <default>0</default>
+        <type>STRING</type>
+        <readonly>true</readonly>
+      </property>
+      <property>
         <name>Reload Counter</name>
         <default>0</default>
         <type>STRING</type>

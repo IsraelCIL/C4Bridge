@@ -1,17 +1,19 @@
 local LightV2 = require("src.adapters.light_v2")
 local ThermostatV2 = require("src.adapters.thermostat_v2")
+local Blind = require("src.adapters.blind")
 
 local Manager = {}
 
 local adapters = {
     LightV2,
     ThermostatV2,
+    Blind,
 }
 
 local attached = {}
 local registry = nil
 local logger = nil
-local initializedCounts = { total = 0, light = 0, climate = 0 }
+local initializedCounts = { total = 0, light = 0, climate = 0, cover = 0 }
 
 local function log(message)
     if logger then
@@ -23,7 +25,7 @@ function Manager.initialize(deviceRegistry, logFunction)
     registry = deviceRegistry
     logger = logFunction
     attached = {}
-    initializedCounts = { total = 0, light = 0, climate = 0 }
+    initializedCounts = { total = 0, light = 0, climate = 0, cover = 0 }
 
     pcall(function()
         C4:UnregisterAllVariableListeners()
@@ -75,6 +77,7 @@ function Manager.counts()
         total = initializedCounts.total,
         light = initializedCounts.light,
         climate = initializedCounts.climate,
+        cover = initializedCounts.cover,
     }
 end
 
@@ -146,7 +149,7 @@ function Manager.shutdown()
 
     attached = {}
     registry = nil
-    initializedCounts = { total = 0, light = 0, climate = 0 }
+    initializedCounts = { total = 0, light = 0, climate = 0, cover = 0 }
 
     for _, adapter in ipairs(adapters) do
         if adapter.reset then

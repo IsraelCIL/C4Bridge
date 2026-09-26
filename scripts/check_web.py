@@ -96,6 +96,10 @@ def main():
         fail("web app must load normalized lights")
     if '"/v1/climate"' not in app:
         fail("web app must load normalized climate devices")
+    if '"/v1/covers"' not in app:
+        fail("web app must load normalized covers")
+    if '"set_level"' not in app:
+        fail("web app missing cover action: set_level")
     for action in ("set_hvac_mode", "set_fan_mode", "set_temperature"):
         if action not in app:
             fail(f"web app missing climate action: {action}")
@@ -113,6 +117,8 @@ def main():
         fail("web app is missing the Light V2 control panel")
     if 'id="climate-list"' not in index:
         fail("web app is missing the climate control panel")
+    if 'id="cover-list"' not in index:
+        fail("web app is missing the cover control panel")
     if 'id="pairing-code"' not in index:
         fail("web app is missing the pairing-code input")
     if 'id="api-token"' in index:
