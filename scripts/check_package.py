@@ -120,6 +120,24 @@ def check_light_adapter():
         if token not in source:
             fail(f"Light V2 adapter missing required contract: {token}")
 
+    proxy_path = DRIVER / "src" / "adapters" / "thermostat_proxy.lua"
+    if not proxy_path.is_file():
+        fail("Thermostat proxy adapter is missing")
+
+    proxy = proxy_path.read_text(encoding="utf-8")
+    for token in (
+        'driver == "control4_thermostat_proxy.c4i"',
+        "VARIABLE_SCALE = 1100",
+        "VARIABLE_HEAT_SETPOINT_F = 1132",
+        "VARIABLE_COOL_SETPOINT_F = 1134",
+        '"SET_SETPOINT_HEAT"',
+        '"SET_SETPOINT_COOL"',
+        '"SET_MODE_HVAC", { MODE = mode }',
+        "C4:RegisterVariableListener",
+    ):
+        if token not in proxy:
+            fail(f"Thermostat proxy adapter missing required contract: {token}")
+
     climate_path = DRIVER / "src" / "adapters" / "thermostat_v2.lua"
     if not climate_path.is_file():
         fail("Thermostat V2 adapter is missing")

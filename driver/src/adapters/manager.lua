@@ -1,11 +1,13 @@
 local LightV2 = require("src.adapters.light_v2")
 local ThermostatV2 = require("src.adapters.thermostat_v2")
+local ThermostatProxy = require("src.adapters.thermostat_proxy")
 
 local Manager = {}
 
 local adapters = {
     LightV2,
     ThermostatV2,
+    ThermostatProxy,
 }
 
 local attached = {}

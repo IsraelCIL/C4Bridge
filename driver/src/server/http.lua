@@ -298,10 +298,10 @@ local function actionErrorStatus(error)
     if code == "DEVICE_NOT_SUPPORTED" or code == "ACTION_NOT_SUPPORTED" then
         return 409
     end
-    if code == "INVALID_BRIGHTNESS" or code == "INVALID_HVAC_MODE" or code == "INVALID_FAN_MODE" or code == "INVALID_TEMPERATURE" then
+    if code == "INVALID_BRIGHTNESS" or code == "INVALID_HVAC_MODE" or code == "INVALID_FAN_MODE" or code == "INVALID_TEMPERATURE" or code == "INVALID_SETPOINT" then
         return 400
     end
-    if code == "HVAC_MODE_NOT_SUPPORTED" then
+    if code == "HVAC_MODE_NOT_SUPPORTED" or code == "FAN_MODE_NOT_SUPPORTED" then
         return 409
     end
     return 500

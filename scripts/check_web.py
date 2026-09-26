@@ -96,7 +96,7 @@ def main():
         fail("web app must load normalized lights")
     if '"/v1/climate"' not in app:
         fail("web app must load normalized climate devices")
-    for action in ("set_hvac_mode", "set_fan_mode", "set_temperature"):
+    for action in ("set_hvac_mode", "set_fan_mode", "set_temperature", "set_heat_setpoint", "set_cool_setpoint"):
         if action not in app:
             fail(f"web app missing climate action: {action}")
     if '{ method: "POST" }' not in app:
