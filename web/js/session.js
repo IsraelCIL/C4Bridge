@@ -15,7 +15,12 @@ import { t } from "./i18n.js";
 import { KINDS, notify, state } from "./state.js";
 
 const POLL_MS = 10000;
+// A refresh that fails is retried soon; only this many failures in a row mean "unreachable".
+// One slow answer (a phone waking up, Wi-Fi busy with camera pictures) is not a disconnect.
+const RETRY_MS = 2000;
+const FAILURES_BEFORE_UNREACHABLE = 2;
 let pollTimer = null;
+let failedRefreshes = 0;
 let connectRun = 0;
 
 export function api(path, options = {}) {
@@ -255,7 +260,7 @@ const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resol
 // Device state, every 10 s while the page is visible. Devices with a command in flight keep
 // their optimistic state until the command is confirmed.
 export async function refreshDevices() {
-  if (!state.apiKey || !state.host) return;
+  if (!state.apiKey || !state.host) return false;
   try {
     const kinds = ["light", "thermostat", "blind"];
     const results = await Promise.all(kinds.map((kind) => api(KINDS[kind].path)));
@@ -268,6 +273,7 @@ export async function refreshDevices() {
       });
     });
     state.lastUpdated = new Date();
+    failedRefreshes = 0;
     if (state.status !== "connected") {
       state.status = "connected";
       state.notice = null;
@@ -275,12 +281,19 @@ export async function refreshDevices() {
   } catch (error) {
     if (error?.status === 401) {
       handleUnauthorized();
-      return;
+      return false;
+    }
+    failedRefreshes += 1;
+    state.lastError = { at: new Date(), text: describeError(error) };
+    console.warn(`C4Bridge refresh failed (${failedRefreshes} in a row)`, error);
+    if (failedRefreshes < FAILURES_BEFORE_UNREACHABLE) {
+      return false;
     }
     state.status = "unreachable";
     state.notice = { kind: "error", text: describeError(error) };
   }
   notify();
+  return failedRefreshes === 0;
 }
 
 // Rooms and cameras change rarely (renames, new devices); refreshed now and then.
@@ -311,10 +324,15 @@ async function poll() {
       await connect();
       return;
     }
-    await refreshDevices();
+    const ok = await refreshDevices();
     pollCount += 1;
-    if (pollCount % 6 === 0 && state.status === "connected") {
+    if (ok && pollCount % 6 === 0 && state.status === "connected") {
       await refreshRooms();
+    }
+    // After a failure, try again soon instead of waiting a whole interval.
+    if (!ok && state.apiKey) {
+      schedulePoll(RETRY_MS);
+      return;
     }
   }
   if (state.apiKey) schedulePoll();
