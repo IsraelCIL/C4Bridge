@@ -9,7 +9,9 @@ local VARIABLE_HVAC_STATE = 1107
 local VARIABLE_IS_CONNECTED = 1112
 local VARIABLE_HVAC_MODES_LIST = 1120
 local VARIABLE_TEMPERATURE_C = 1131
+local VARIABLE_HEAT_SETPOINT_C = 1133
 local VARIABLE_SINGLE_SETPOINT_F = 1149
+local VARIABLE_SINGLE_SETPOINT_C = 1150
 
 local tracked = {}
 
@@ -67,6 +69,20 @@ local function normalizeMode(value)
     return v ~= "" and v or nil
 end
 
+-- Some Thermostat V2 devices (e.g. heat-only floor heating) don't use the
+-- single setpoint at all: it stays 0 in both scales while the real target
+-- lives in the heat setpoint, and the device has no SET_SETPOINT_SINGLE
+-- command. 0°F / 0°C both at once is never a real target, so treat that as
+-- "unused" and follow the heat setpoint instead.
+local function singleSetpointUnused(deviceId, setpointF)
+    local singleC = tonumber(safeGetVariable(deviceId, VARIABLE_SINGLE_SETPOINT_C))
+    return tonumber(setpointF) == 0 and (singleC == nil or singleC == 0)
+end
+
+local function scaleIsFahrenheit(scale)
+    return lower(scale):sub(1, 1) == "f"
+end
+
 local function titleMode(value)
     local v = lower(value)
     if v == "off" then return "Off" end
@@ -110,10 +126,13 @@ function Climate.initialize(device)
     local hvacModesValue = safeGetVariable(device.id, VARIABLE_HVAC_MODES_LIST)
     local scale = safeGetVariable(device.id, VARIABLE_SCALE)
 
+    local heatSetpointC = tonumber(safeGetVariable(device.id, VARIABLE_HEAT_SETPOINT_C))
+    local useHeatSetpoint = heatSetpointC ~= nil and singleSetpointUnused(device.id, setpointF)
+
     local required = {
         VARIABLE_TEMPERATURE_C,
         VARIABLE_HVAC_MODE,
-        VARIABLE_SINGLE_SETPOINT_F,
+        useHeatSetpoint and VARIABLE_HEAT_SETPOINT_C or VARIABLE_SINGLE_SETPOINT_F,
     }
     for _, variableId in ipairs(required) do
         local ok = registerListener(device.id, variableId)
@@ -157,6 +176,7 @@ function Climate.initialize(device)
     end
 
     tracked[device.id] = {
+        useHeatSetpoint = useHeatSetpoint,
         hasFanMode = hasFanControl,
         hvacModes = hvacModes,
         fanModes = fanModes,
@@ -167,8 +187,10 @@ function Climate.initialize(device)
         hvac_modes = hvacModes,
         fan_modes = fanModes,
         single_setpoint = true,
+        setpoint_source = useHeatSetpoint and "heat" or "single",
         temperature_unit = "C",
-        target_temperature_min_c = 16,
+        -- Floor heating is often parked well below comfort temperature.
+        target_temperature_min_c = useHeatSetpoint and 5 or 16,
         target_temperature_max_c = hasCool and 25 or 32,
     }
     device.actions = {
@@ -183,10 +205,10 @@ function Climate.initialize(device)
         connected = connectedValue == nil and true or boolValue(connectedValue),
         scale = tostring(scale or "CELSIUS"),
         current_temperature_c = tempC,
-        target_temperature_c = fahrenheitToCelsius(setpointF),
+        target_temperature_c = useHeatSetpoint and heatSetpointC or fahrenheitToCelsius(setpointF),
         hvac_mode = normalizeMode(hvacMode),
         hvac_state = normalizeMode(hvacState),
-        fan_mode = fanMode and lower(fanMode) or nil,
+        fan_mode = fanMode and lower(fanMode) ~= "undefined" and lower(fanMode) or nil,
     }
 
     Diagnostics.info("climate", "initialized thermostat", {
@@ -210,8 +232,11 @@ function Climate.onVariableChanged(device, variableId, value)
     if variableId == VARIABLE_TEMPERATURE_C then
         local n = tonumber(value)
         if n ~= nil then device.state.current_temperature_c = n end
-    elseif variableId == VARIABLE_SINGLE_SETPOINT_F then
+    elseif variableId == VARIABLE_SINGLE_SETPOINT_F and not tracked[device.id].useHeatSetpoint then
         device.state.target_temperature_c = fahrenheitToCelsius(value)
+    elseif variableId == VARIABLE_HEAT_SETPOINT_C and tracked[device.id].useHeatSetpoint then
+        local n = tonumber(value)
+        if n ~= nil then device.state.target_temperature_c = n end
     elseif variableId == VARIABLE_HVAC_MODE then
         device.state.hvac_mode = normalizeMode(value)
     elseif variableId == VARIABLE_FAN_MODE then
@@ -318,8 +343,9 @@ function Climate.execute(device, action, params)
 
     if action == "set_temperature" then
         local target = tonumber(params and (params.value or params.celsius))
+        local minTarget = device.capabilities and device.capabilities.target_temperature_min_c or 16
         local maxTarget = device.capabilities and device.capabilities.target_temperature_max_c or 32
-        if not target or target < 16 or target > maxTarget then
+        if not target or target < minTarget or target > maxTarget then
             return false, {
                 code = "INVALID_TEMPERATURE",
                 message = "Temperature is outside this thermostat's C4Bridge range",
@@ -327,7 +353,17 @@ function Climate.execute(device, action, params)
         end
 
         target = math.floor(target * 10 + 0.5) / 10
-        local ok, err = send(device.id, "SET_SETPOINT_SINGLE", { CELSIUS = target })
+        local ok, err
+        if info.useHeatSetpoint then
+            -- Heat-setpoint devices take the setpoint in the project scale.
+            if scaleIsFahrenheit(device.state and device.state.scale) then
+                ok, err = send(device.id, "SET_SETPOINT_HEAT", { FAHRENHEIT = math.floor(target * 9 / 5 + 32 + 0.5) })
+            else
+                ok, err = send(device.id, "SET_SETPOINT_HEAT", { CELSIUS = target })
+            end
+        else
+            ok, err = send(device.id, "SET_SETPOINT_SINGLE", { CELSIUS = target })
+        end
         if not ok then
             return false, { code = "COMMAND_FAILED", message = err }
         end
