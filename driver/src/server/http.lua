@@ -141,6 +141,26 @@ local function unauthorized(handle, origin)
     }, origin)
 end
 
+-- Compare secrets without an early exit on the first differing byte, so
+-- response timing doesn't reveal how much of a guessed token was correct.
+-- (Same approach as the pairing-code check in auth/pairing.lua.)
+local function constantTimeEqual(left, right)
+    left = tostring(left or "")
+    right = tostring(right or "")
+
+    if #left ~= #right then
+        return false
+    end
+
+    local same = true
+    for index = 1, #left do
+        if left:byte(index) ~= right:byte(index) then
+            same = false
+        end
+    end
+    return same
+end
+
 local function isAuthorized(request)
     local authorization = request.headers["authorization"]
     if not authorization then
@@ -152,7 +172,7 @@ local function isAuthorized(request)
         return false
     end
 
-    return token == config.token
+    return constantTimeEqual(token, config.token)
 end
 
 local function systemInfo()
