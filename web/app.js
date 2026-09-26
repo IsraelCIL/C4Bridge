@@ -637,7 +637,8 @@ function setCoverMessage(message, type = "") {
 function coverStateLabel(device) {
   const level = Number(device.state?.level);
   const parts = [];
-  if (device.state?.fully_open) parts.push("Open");
+  if (device.state?.position_known === false) parts.push("Position unknown");
+  else if (device.state?.fully_open) parts.push("Open");
   else if (device.state?.fully_closed) parts.push("Closed");
   else if (Number.isFinite(level)) parts.push(`${level}% open`);
   if (device.state?.movement && device.state.movement !== "stopped") parts.push(device.state.movement);
