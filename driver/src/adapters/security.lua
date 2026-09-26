@@ -23,6 +23,7 @@ local VARIABLE_ALARM_TYPE = 1011
 local VARIABLE_ARMED_TYPE = 1012
 
 local WATCHED = {
+    VARIABLE_IS_ACTIVE,
     VARIABLE_HOME_STATE,
     VARIABLE_AWAY_STATE,
     VARIABLE_DISARMED_STATE,
@@ -63,6 +64,10 @@ local function refresh(device)
     local armedHome = boolValue(raw[VARIABLE_HOME_STATE])
     local armedAway = boolValue(raw[VARIABLE_AWAY_STATE])
 
+    -- Unused partitions report IS_ACTIVE = 0. At Director startup the panel
+    -- driver may not have connected yet, so activity is tracked live rather
+    -- than decided once at init.
+    device.state.active = raw[VARIABLE_IS_ACTIVE] == nil or boolValue(raw[VARIABLE_IS_ACTIVE])
     device.state.partition_state = textValue(raw[VARIABLE_PARTITION_STATE])
     device.state.armed = armedHome or armedAway
     device.state.armed_mode = armedAway and "away" or (armedHome and "home" or nil)
@@ -86,15 +91,9 @@ function Security.reset()
 end
 
 function Security.initialize(device)
-    local active = safeGetVariable(device.id, VARIABLE_IS_ACTIVE)
     local partitionState = safeGetVariable(device.id, VARIABLE_PARTITION_STATE)
     if partitionState == nil then
         return false, "Partition State variable (1007) is unavailable"
-    end
-    -- Panels expose every partition they support; unused ones report
-    -- IS_ACTIVE = 0 and would only clutter the list.
-    if active ~= nil and not boolValue(active) then
-        return false, "Security partition is not active"
     end
 
     local raw = {}

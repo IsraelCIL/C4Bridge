@@ -79,7 +79,10 @@ function Registry.securityList()
     local partitions = {}
 
     for id, device in pairs(Registry.devices or {}) do
-        if device.kind == "security" and device.supported == true then
+        -- Panels expose every partition they support; list only the ones
+        -- currently in use.
+        if device.kind == "security" and device.supported == true
+            and not (device.state and device.state.active == false) then
             partitions[id] = device
         end
     end
