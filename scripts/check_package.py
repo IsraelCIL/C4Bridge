@@ -120,6 +120,21 @@ def check_light_adapter():
         if token not in source:
             fail(f"Light V2 adapter missing required contract: {token}")
 
+    fan_path = DRIVER / "src" / "adapters" / "fan.lua"
+    if not fan_path.is_file():
+        fail("Fan adapter is missing")
+
+    fan = fan_path.read_text(encoding="utf-8")
+    for token in (
+        'driver == "fan.c4i"',
+        "VARIABLE_IS_ON = 1000",
+        "VARIABLE_CURRENT_SPEED = 1001",
+        'send(device.id, "SET_SPEED", { SPEED = speed })',
+        "C4:RegisterVariableListener",
+    ):
+        if token not in fan:
+            fail(f"Fan adapter missing required contract: {token}")
+
     climate_path = DRIVER / "src" / "adapters" / "thermostat_v2.lua"
     if not climate_path.is_file():
         fail("Thermostat V2 adapter is missing")
