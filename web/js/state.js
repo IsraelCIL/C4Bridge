@@ -17,6 +17,9 @@ export const state = {
   blinds: [],
   cameras: [],
   relays: [], // doors and gates; [] on drivers without /v1/relays
+  // This key's role (GET /v1/api-keys/current): viewer < member < doors < admin.
+  // Drivers without roles answer 404 there; their keys can do everything, so "admin".
+  role: null,
   lastUpdated: null,
   // Per device ("light:22"): short inline error after a failed command.
   errors: {},
@@ -70,6 +73,15 @@ export const KINDS = {
   camera: { list: "cameras", path: "/v1/cameras" },
   relay: { list: "relays", path: "/v1/relays" },
 };
+
+// Roles, lowest first. can("member") is true for member, doors and admin keys.
+export const ROLES = ["viewer", "member", "doors", "admin"];
+
+export function can(role) {
+  const mine = ROLES.indexOf(state.role || "admin");
+  // An unknown (newer) role gets the safe, read-only interface; the controller decides anyway.
+  return mine >= 0 && mine >= ROLES.indexOf(role);
+}
 
 export function deviceKey(kind, id) {
   return `${kind}:${id}`;

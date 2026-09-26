@@ -15,7 +15,7 @@ import { isFavorite, toggleFavorite } from "./favorites.js";
 import { formatTemperature, t } from "./i18n.js";
 import { icon } from "./icons.js";
 import { blindStateLabel, climateIsOn, fanLabel, labelOr, modeLabel, roomName, shownBrightness } from "./model.js";
-import { deviceKey, notify, state, ui } from "./state.js";
+import { can, deviceKey, notify, state, ui } from "./state.js";
 
 // ---- generic -------------------------------------------------------------------------------
 
@@ -163,9 +163,10 @@ export function lightRow(light, { showRoom = false } = {}) {
         h("span", { class: "device-meta" }, showRoom ? [name(roomName(light.room)), " · "] : null, lightStatus(light))
       ),
       favoriteStar("light", light),
-      lightSwitch(light)
+      // View-only keys (role viewer) see the state without controls.
+      can("member") ? lightSwitch(light) : null
     ),
-    light.dimmable
+    light.dimmable && can("member")
       ? slider({
           label: t("lights.brightness", { name: light.name }),
           value: shownBrightness(light),
@@ -198,8 +199,10 @@ export function thermostatCard(thermostat, { showRoom = false } = {}) {
   const min = thermostat.target_temperature_min;
   const max = thermostat.target_temperature_max;
   const active = climateIsOn(thermostat);
-  const modes = thermostat.modes || [];
-  const fans = thermostat.fan_speeds || [];
+  const controls = can("member");
+  const modes = controls ? thermostat.modes || [] : [];
+  const fans = controls ? thermostat.fan_speeds || [] : [];
+  const fanNote = !controls && thermostat.fan_speed ? ` · ${t("climate.fan")} ${fanLabel(thermostat.fan_speed)}` : "";
   return h(
     "div",
     { class: `device climate ${active ? "is-cool" : ""}` },
@@ -216,12 +219,24 @@ export function thermostatCard(thermostat, { showRoom = false } = {}) {
           { class: "device-meta" },
           showRoom ? [name(roomName(thermostat.room)), " · "] : null,
           modeLabel(thermostat.mode),
-          climateStatus(thermostat) ? ` · ${climateStatus(thermostat)}` : ""
+          climateStatus(thermostat) ? ` · ${climateStatus(thermostat)}` : "",
+          fanNote
         )
       ),
       favoriteStar("thermostat", thermostat)
     ),
-    h(
+    !controls
+      ? h(
+          "div",
+          { class: "stepper stepper-readonly" },
+          h(
+            "div",
+            { class: "stepper-value" },
+            h("span", { class: "stepper-number" }, formatTemperature(target)),
+            h("span", { class: "stepper-label" }, t("climate.targetShort"))
+          )
+        )
+      : h(
       "div",
       { class: "stepper", role: "group", "aria-label": t("climate.target", { name: thermostat.name }) },
       iconButton("minus", t("climate.lower"), {
@@ -306,20 +321,24 @@ export function blindRow(blind, { showRoom = false } = {}) {
       ),
       favoriteStar("blind", blind)
     ),
-    h(
-      "div",
-      { class: "segments", role: "group", "aria-label": blind.name },
-      button(t("blinds.close"), "arrowDown", () => setBlind(blind, 0), "close"),
-      button(t("blinds.stop"), "stop", () => stopBlind(blind), "stop"),
-      button(t("blinds.openAction"), "arrowUp", () => setBlind(blind, 100), "open")
-    ),
-    slider({
-      label: t("blinds.position", { name: blind.name }),
-      value: known ? blind.position : 0,
-      key: `blind:${blind.id}:position`,
-      format: (value) => t("blinds.percentOpen", { percent: value }),
-      onCommit: (value) => setBlind(blind, value),
-    }),
+    can("member")
+      ? h(
+          "div",
+          { class: "segments", role: "group", "aria-label": blind.name },
+          button(t("blinds.close"), "arrowDown", () => setBlind(blind, 0), "close"),
+          button(t("blinds.stop"), "stop", () => stopBlind(blind), "stop"),
+          button(t("blinds.openAction"), "arrowUp", () => setBlind(blind, 100), "open")
+        )
+      : null,
+    can("member")
+      ? slider({
+          label: t("blinds.position", { name: blind.name }),
+          value: known ? blind.position : 0,
+          key: `blind:${blind.id}:position`,
+          format: (value) => t("blinds.percentOpen", { percent: value }),
+          onCommit: (value) => setBlind(blind, value),
+        })
+      : null,
     inlineError(key)
   );
 }
@@ -334,7 +353,9 @@ function relayButtonLabel(relay) {
   return t("relays.open");
 }
 
+// Opening doors and gates needs the doors role (or admin); null otherwise.
 export function relayButton(relay, { compact = false } = {}) {
+  if (!can("doors")) return null;
   const stage = ui.relayStage[relay.id] || "";
   return h(
     "button",
@@ -372,12 +393,13 @@ export function relayRow(relay, { showRoom = false } = {}) {
           "span",
           { class: "device-meta" },
           showRoom ? [name(roomName(relay.room)), " · "] : null,
-          confirming ? t("relays.confirmHint") : t("relays.hint")
+          !can("doors") ? t("relays.noAccess") : confirming ? t("relays.confirmHint") : t("relays.hint")
         )
       ),
       favoriteStar("relay", relay)
     ),
-    h(
+    can("doors")
+      ? h(
       "div",
       { class: "relay-actions" },
       relayButton(relay),
@@ -388,7 +410,8 @@ export function relayRow(relay, { showRoom = false } = {}) {
             t("common.cancel")
           )
         : null
-    ),
+    )
+      : null,
     inlineError(key)
   );
 }

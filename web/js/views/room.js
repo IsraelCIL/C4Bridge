@@ -15,6 +15,7 @@ import { h, name } from "../dom.js";
 import { t } from "../i18n.js";
 import { icon } from "../icons.js";
 import { NO_ROOM, climateIsOn, lightIsOn, roomById, roomGroup, roomName } from "../model.js";
+import { can } from "../state.js";
 import { isLoading, notReadyState, offlineBanner, pageHeader, staleBanner } from "./common.js";
 
 export function roomView(roomId, { openCamera }) {
@@ -37,7 +38,7 @@ export function roomView(roomId, { openCamera }) {
   const group = roomGroup(id);
   const anythingOn = group.lights.some(lightIsOn) || group.thermostats.some(climateIsOn);
   const actions = [];
-  if (group.lights.length || group.thermostats.length) {
+  if ((group.lights.length || group.thermostats.length) && can("member")) {
     actions.push(
       h(
         "button",
@@ -96,6 +97,10 @@ export function roomView(roomId, { openCamera }) {
   return [
     pageHeader({ title: roomName(room), back: "#/", titleDir: "auto" }),
     actions.length ? h("div", { class: "toolbar" }, actions) : null,
+    // View-only keys: the state is shown, the controls are not.
+    !can("member") && (group.lights.length || group.thermostats.length || group.blinds.length)
+      ? h("p", { class: "view-only-hint" }, icon("info"), h("span", {}, t("roles.viewOnlyHint")))
+      : null,
     offlineBanner(),
     staleBanner(),
     sections.length

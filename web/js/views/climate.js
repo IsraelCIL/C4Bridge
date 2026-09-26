@@ -5,7 +5,7 @@ import { h, name } from "../dom.js";
 import { t } from "../i18n.js";
 import { icon } from "../icons.js";
 import { deviceRoomId, roomName } from "../model.js";
-import { state } from "../state.js";
+import { can, state } from "../state.js";
 import { isLoading, notReadyState, offlineBanner, pageHeader, staleBanner } from "./common.js";
 
 export function climateView() {
@@ -31,6 +31,7 @@ export function climateView() {
     header,
     offlineBanner(),
     staleBanner(),
+    !can("member") ? h("p", { class: "view-only-hint" }, icon("info"), h("span", {}, t("roles.viewOnlyHint"))) : null,
     h(
       "div",
       { class: "climate-groups" },

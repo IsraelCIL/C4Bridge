@@ -56,6 +56,7 @@ export function forgetKey() {
   clearApiKey();
   stopPolling();
   state.apiKey = "";
+  state.role = null;
   state.status = "setup";
   state.loaded = false;
 }
@@ -69,6 +70,13 @@ function describeError(error) {
   }
   if (error?.code === "PAIRING_RATE_LIMITED") {
     return t("errors.pairingRateLimited");
+  }
+  // 403 FORBIDDEN: this key's role is too low; DOOR_CONTROL_DISABLED: the Composer switch is off.
+  if (error?.code === "DOOR_CONTROL_DISABLED") {
+    return t("errors.doorsDisabled");
+  }
+  if (error?.code === "FORBIDDEN") {
+    return t("errors.forbidden", { role: roleLabel(error.problem?.role || state.role) });
   }
   if (error?.code === "INVALID_PAIRING_CODE" || error?.code === "PAIRING_FAILED" || error?.status === 403) {
     return error.message || t("errors.pairingRejected");
@@ -106,8 +114,34 @@ async function optionalList(path) {
   }
 }
 
+export function roleLabel(role) {
+  const key = `roles.${role || "admin"}`;
+  const label = t(key);
+  return label === key ? String(role) : label;
+}
+
+// Drivers before API key roles have no /v1/api-keys/current: their keys can do everything.
+async function loadRole() {
+  try {
+    const key = await api("/v1/api-keys/current");
+    return typeof key?.role === "string" ? key.role : "admin";
+  } catch (error) {
+    if (error?.status === 404 || error?.status === 405) return "admin";
+    throw error;
+  }
+}
+
+// A 403 FORBIDDEN names the key's current role (it may have been changed in Composer).
+export function noteForbidden(error) {
+  const role = error?.code === "FORBIDDEN" ? error.problem?.role : null;
+  if (typeof role === "string" && role !== state.role) {
+    state.role = role;
+    notify();
+  }
+}
+
 async function loadAll() {
-  const [system, rooms, lights, thermostats, blinds, cameras, devices, relays] = await Promise.all([
+  const [system, rooms, lights, thermostats, blinds, cameras, devices, relays, role] = await Promise.all([
     api("/v1/system"),
     api("/v1/rooms"),
     api("/v1/lights"),
@@ -116,6 +150,7 @@ async function loadAll() {
     api("/v1/cameras"),
     api("/v1/devices").catch(() => ({ items: [] })),
     optionalList("/v1/relays"),
+    loadRole(),
   ]);
   state.system = system;
   state.rooms = rooms?.items || [];
@@ -125,6 +160,7 @@ async function loadAll() {
   state.cameras = cameras?.items || [];
   state.devices = devices?.items || [];
   state.relays = relays;
+  state.role = role;
   state.lastUpdated = new Date();
   state.loaded = true;
 }
@@ -299,10 +335,16 @@ export async function refreshDevices() {
 // Rooms and cameras change rarely (renames, new devices); refreshed now and then.
 export async function refreshRooms() {
   try {
-    const [rooms, cameras, relays] = await Promise.all([api("/v1/rooms"), api("/v1/cameras"), optionalList("/v1/relays")]);
+    const [rooms, cameras, relays, role] = await Promise.all([
+      api("/v1/rooms"),
+      api("/v1/cameras"),
+      optionalList("/v1/relays"),
+      loadRole().catch(() => state.role),
+    ]);
     state.rooms = rooms?.items || state.rooms;
     state.cameras = cameras?.items || state.cameras;
     state.relays = relays;
+    state.role = role;
     notify();
   } catch {
     // The next device refresh reports connection problems.
@@ -367,13 +409,22 @@ document.addEventListener("visibilitychange", () => {
 export async function revokeAndForget() {
   if (state.host && state.apiKey) {
     try {
-      const keys = await api("/v1/api-keys", { timeoutMs: 4000 });
-      const mine = keys?.items?.find((item) => item.current);
-      if (mine) {
-        await api(`/v1/api-keys/${mine.id}`, { method: "DELETE", timeoutMs: 4000 });
+      // Any key may revoke itself (drivers with API key roles).
+      await api("/v1/api-keys/current", { method: "DELETE", timeoutMs: 4000 });
+    } catch (error) {
+      if (error?.status === 404 || error?.status === 405) {
+        // Older driver: find this key in the list and revoke it (every key was admin there).
+        try {
+          const keys = await api("/v1/api-keys", { timeoutMs: 4000 });
+          const mine = keys?.items?.find((item) => item.current);
+          if (mine) {
+            await api(`/v1/api-keys/${mine.id}`, { method: "DELETE", timeoutMs: 4000 });
+          }
+        } catch {
+          // Unreachable or not allowed: forgetting it here is still what was asked.
+        }
       }
-    } catch {
-      // Unreachable or already revoked: forgetting it here is still what was asked.
+      // Otherwise unreachable or already revoked: forget it here anyway.
     }
   }
   forgetKey();

@@ -142,6 +142,7 @@ function signature() {
     state.blinds,
     state.cameras,
     state.relays,
+    state.role,
     state.devices,
     state.sentBrightness,
     Object.fromEntries(Object.entries(state.errors).map(([key, value]) => [key, value.text])),

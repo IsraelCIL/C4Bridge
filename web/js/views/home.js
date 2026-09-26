@@ -20,7 +20,7 @@ import {
   visibleRooms,
 } from "../model.js";
 import { installApp } from "../pwa.js";
-import { notify, state, ui } from "../state.js";
+import { can, notify, state, ui } from "../state.js";
 import { connectScreen } from "./connect.js";
 import { isLoading, offlineBanner, pageHeader, staleBanner, unreachableState } from "./common.js";
 
@@ -232,7 +232,7 @@ function favoriteTile({ entry, kind, device }, { editing, index, count, openCame
     );
   }
 
-  if (kind === "light") {
+  if (kind === "light" && can("member")) {
     return h(
       "button",
       {

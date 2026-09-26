@@ -73,6 +73,8 @@ export default {
       "Could not reach C4Bridge. Check that you are on the home network, that the address is right, and allow local network access if the browser asks.",
     commandFailed: "The command failed.",
     notConfirmed: "Sent — waiting for the device to confirm.",
+    forbidden: "Your access level ({role}) can’t do this.",
+    doorsDisabled: "Door control is off. Turn on Door Control in Composer (C4Bridge properties).",
   },
   home: {
     title: "Home",
@@ -177,6 +179,7 @@ export default {
     sent: "Sent",
     hint: "Door or gate",
     confirmHint: "Tap again within 5 seconds",
+    noAccess: "Opening needs door access",
   },
   cameras: {
     title: "Cameras",
@@ -188,6 +191,14 @@ export default {
     fullHint: "Tap the picture for full screen.",
     emptyTitle: "No cameras",
     emptyText: "C4Bridge did not find cameras in this project.",
+  },
+  roles: {
+    viewer: "View only",
+    member: "Member",
+    doors: "Member + doors",
+    admin: "Admin",
+    viewOnly: "View only: this device can see the home but not control it. Ask an admin for more access.",
+    viewOnlyHint: "View only — this device can’t control devices.",
   },
   palettes: {
     graphite: "Graphite",
@@ -216,11 +227,13 @@ export default {
       connectFirst: "Connect to your controller to rename rooms.",
       saved: "Saved.",
       updateDriver: "Update C4Bridge on the controller to rename rooms.",
+      askAdmin: "Only an admin can rename rooms. This device has {role} access — ask an admin.",
     },
     controller: {
       title: "Controller",
       connect: "Connect",
       status: "Status",
+      access: "Access",
       updated: "Last update",
       bridgeVersion: "C4Bridge version",
       model: "Controller",

@@ -428,6 +428,23 @@ img {
   }
 }
 
+.view-only-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.view-only-hint .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.stepper-readonly {
+  justify-content: center;
+}
+
 .toolbar {
   display: flex;
   justify-content: flex-end;

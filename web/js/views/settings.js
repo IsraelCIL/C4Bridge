@@ -5,9 +5,9 @@ import { LANGUAGES, formatTime, languagePreference, t } from "../i18n.js";
 import { icon } from "../icons.js";
 import { roomName } from "../model.js";
 import { installApp } from "../pwa.js";
-import { connect, errorText, requestAccess, revokeAndForget, saveRoomNames, useHost } from "../session.js";
+import { connect, errorText, requestAccess, revokeAndForget, roleLabel, saveRoomNames, useHost } from "../session.js";
 import { PALETTES, THEMES, palettePreference, themePreference } from "../theme.js";
-import { notify, state, ui } from "../state.js";
+import { can, notify, state, ui } from "../state.js";
 import { offlineBanner, pageHeader } from "./common.js";
 
 export function settingsView({ onPalette, onTheme, onLanguage, navigate }) {
@@ -133,7 +133,10 @@ function roomsSection() {
     "rooms",
     t("settings.rooms.title"),
     h("p", { class: "field-help" }, t("settings.rooms.help")),
-    h("div", { class: "room-editor-list" }, state.rooms.map(roomEditor))
+    // Renaming rooms (PATCH /v1/rooms/{id}) needs an admin key.
+    can("admin")
+      ? h("div", { class: "room-editor-list" }, state.rooms.map(roomEditor))
+      : h("p", { class: "notice notice-info" }, t("settings.rooms.askAdmin", { role: roleLabel(state.role) }))
   );
 }
 
@@ -240,6 +243,7 @@ function controllerSection(navigate) {
   const system = state.system;
   const rows = [
     [t("settings.controller.status"), t(`status.${state.status}`)],
+    state.role ? [t("settings.controller.access"), roleLabel(state.role)] : null,
     state.lastUpdated && state.loaded ? [t("settings.controller.updated"), formatTime(state.lastUpdated)] : null,
     system?.bridge?.version ? [t("settings.controller.bridgeVersion"), system.bridge.version] : null,
     system?.controller?.model ? [t("settings.controller.model"), system.controller.model] : null,
@@ -278,6 +282,7 @@ function controllerSection(navigate) {
       { class: "facts" },
       rows.map(([label, value]) => h("div", { class: "fact" }, h("dt", {}, label), h("dd", { dir: "auto" }, value)))
     ),
+    state.role && !can("member") ? h("p", { class: "notice notice-info" }, t("roles.viewOnly")) : null,
     state.status === "unreachable" && state.notice ? h("p", { class: "notice notice-error" }, state.notice.text) : null,
     h(
       "div",

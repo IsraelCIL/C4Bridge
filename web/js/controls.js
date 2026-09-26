@@ -3,8 +3,8 @@
 // confirms it. A failed command reverts the change and shows a short error on the device.
 
 import { t } from "./i18n.js";
-import { api, errorText, handleUnauthorized } from "./session.js";
-import { KINDS, clearError, deviceKey, findDevice, notify, replaceDevice, setError, state, ui } from "./state.js";
+import { api, errorText, handleUnauthorized, noteForbidden } from "./session.js";
+import { KINDS, can, clearError, deviceKey, findDevice, notify, replaceDevice, setError, state, ui } from "./state.js";
 
 const CONFIRM_MS = 5000;
 const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
@@ -77,7 +77,7 @@ function optimistic(kind, device, change) {
 export async function sendChange(kind, id, change, { before } = {}) {
   const key = deviceKey(kind, id);
   const current = findDevice(kind, id);
-  if (!current) return;
+  if (!current || !can("member")) return;
   const original = before || current;
   const needsConfirmation = !(kind === "light" && "brightness" in change && !current.brightness_reported);
 
@@ -107,6 +107,7 @@ export async function sendChange(kind, id, change, { before } = {}) {
       handleUnauthorized();
       return;
     }
+    noteForbidden(error);
     const now = findDevice(kind, id);
     if (now) {
       const reverted = { ...now };
@@ -137,7 +138,7 @@ const nudges = new Map();
 export function nudgeTarget(thermostat, delta) {
   const id = thermostat.id;
   const current = findDevice("thermostat", id);
-  if (!current) return;
+  if (!current || !can("member")) return;
   let entry = nudges.get(id);
   const first = !entry;
   if (first) {
@@ -184,6 +185,7 @@ export function setBlind(blind, position) {
 }
 
 export async function stopBlind(blind) {
+  if (!can("member")) return;
   const key = deviceKey("blind", blind.id);
   clearError(key);
   try {
@@ -195,6 +197,7 @@ export async function stopBlind(blind) {
       handleUnauthorized();
       return;
     }
+    noteForbidden(error);
     setError(key, errorText(error));
   }
   notify();
@@ -238,7 +241,7 @@ export function cancelRelay(relay) {
 
 export async function pressRelay(relay) {
   const stage = ui.relayStage[relay.id];
-  if (stage === "sending") {
+  if (stage === "sending" || !can("doors")) {
     return;
   }
   if (stage !== "confirm") {
@@ -256,6 +259,7 @@ export async function pressRelay(relay) {
       return;
     }
     setRelayStage(relay.id, null);
+    noteForbidden(error);
     setError(deviceKey("relay", relay.id), errorText(error));
   }
 }

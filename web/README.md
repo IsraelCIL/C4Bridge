@@ -27,6 +27,8 @@ Hash routes, so Back and reload work: `#/` Home, `#/room/<id>`, `#/cameras`, `#/
 - **Climate** — all thermostats grouped by room.
 - **Settings** — appearance, language, room names per language (`PATCH /v1/rooms/{id}`), controller (address, status, versions, request new access, forget key), app (offline copy, install, API console), about.
 
+API key roles (drivers from v0.7.0): on connect the app reads `GET /v1/api-keys/current` (404 on older drivers → treated as admin) and shows only what the key may do — `viewer` sees state without controls, `member` controls lights, climate and blinds, `doors` also opens doors and gates (after a confirming second tap), `admin` also renames rooms. A 403 `FORBIDDEN` reverts the change, shows "Your access level (…) can't do this" and adopts the role it reports; `DOOR_CONTROL_DISABLED` explains how to turn Door Control on in Composer. Forget key and Request new access revoke the key with `DELETE /v1/api-keys/current` (older drivers: the key list).
+
 Controls change the screen at once, send the command, then re-read the device until the controller confirms it; a failed command reverts and shows a short error on the device. Device state refreshes every 10 s while the page is visible.
 
 ## Palettes and themes

@@ -71,6 +71,8 @@ export default {
     unreachable: "אין חיבור ל-C4Bridge. ודאו שאתם ברשת הביתית ושהכתובת נכונה, ואשרו גישה לרשת המקומית אם הדפדפן מבקש.",
     commandFailed: "הפקודה נכשלה.",
     notConfirmed: "נשלח — ממתין לאישור מהמכשיר.",
+    forbidden: "רמת הגישה שלכם ({role}) לא מאפשרת את זה.",
+    doorsDisabled: "שליטה בדלתות כבויה. הפעילו את Door Control ב-Composer (מאפייני C4Bridge).",
   },
   home: {
     title: "בית",
@@ -175,6 +177,7 @@ export default {
     sent: "נשלח",
     hint: "דלת או שער",
     confirmHint: "הקישו שוב תוך 5 שניות",
+    noAccess: "פתיחה דורשת הרשאת דלתות",
   },
   cameras: {
     title: "מצלמות",
@@ -186,6 +189,14 @@ export default {
     fullHint: "הקישו על התמונה למסך מלא.",
     emptyTitle: "אין מצלמות",
     emptyText: "C4Bridge לא מצא מצלמות בפרויקט.",
+  },
+  roles: {
+    viewer: "צפייה בלבד",
+    member: "חבר בית",
+    doors: "חבר בית + דלתות",
+    admin: "מנהל",
+    viewOnly: "צפייה בלבד: המכשיר רואה את הבית אבל לא שולט בו. פנו למנהל לקבלת גישה נוספת.",
+    viewOnlyHint: "צפייה בלבד — המכשיר לא יכול לשלוט במכשירים.",
   },
   palettes: {
     graphite: "גרפיט",
@@ -214,11 +225,13 @@ export default {
       connectFirst: "התחברו לבקר כדי לשנות שמות חדרים.",
       saved: "נשמר.",
       updateDriver: "עדכנו את C4Bridge בבקר כדי לשנות שמות חדרים.",
+      askAdmin: "רק מנהל יכול לשנות שמות חדרים. למכשיר הזה יש גישת {role} — פנו למנהל.",
     },
     controller: {
       title: "בקר",
       connect: "התחברות",
       status: "מצב",
+      access: "גישה",
       updated: "עדכון אחרון",
       bridgeVersion: "גרסת C4Bridge",
       model: "בקר",
