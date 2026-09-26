@@ -494,6 +494,20 @@ function setClimateMessage(message, type = "") {
 }
 
 function climateStateLabel(device) {
+  if (device.capabilities?.setpoint_mode === "dual") {
+    const unit = device.state?.scale === "C" ? "°C" : "°F";
+    const parts = [];
+    const current = Number(device.state?.current_temperature);
+    const heat = Number(device.state?.heat_setpoint);
+    const cool = Number(device.state?.cool_setpoint);
+    if (Number.isFinite(current)) parts.push(`Current ${current}${unit}`);
+    if (Number.isFinite(heat)) parts.push(`Heat ${heat}${unit}`);
+    if (Number.isFinite(cool)) parts.push(`Cool ${cool}${unit}`);
+    if (device.state?.hvac_mode) parts.push(String(device.state.hvac_mode));
+    if (device.state?.hvac_state && device.state.hvac_state !== "off") parts.push(`running: ${device.state.hvac_state}`);
+    if (device.state?.fan_mode) parts.push(`fan ${device.state.fan_mode}`);
+    return parts.join(" · ") || "State unavailable";
+  }
   const current = Number(device.state?.current_temperature_c);
   const target = Number(device.state?.target_temperature_c);
   const parts = [];
@@ -600,6 +614,13 @@ function renderClimate(devices) {
       controls.append(fanSelect);
     }
 
+    if (device.capabilities?.setpoint_mode === "dual") {
+      controls.append(...dualSetpointControls(device));
+      row.append(identity, controls);
+      climateList.append(row);
+      continue;
+    }
+
     const temp = document.createElement("input");
     temp.className = "climate-temp";
     temp.type = "number";
@@ -622,6 +643,37 @@ function renderClimate(devices) {
     row.append(identity, controls);
     climateList.append(row);
   }
+}
+
+// Heat and cool setpoint inputs for dual-setpoint thermostats, in the
+// thermostat's own unit.
+function dualSetpointControls(device) {
+  const unit = device.state?.scale === "C" ? "C" : "F";
+  const elements = [];
+  for (const [kind, label, action] of [
+    ["heat", "Heat", "set_heat_setpoint"],
+    ["cool", "Cool", "set_cool_setpoint"],
+  ]) {
+    const value = Number(device.state?.[`${kind}_setpoint`]);
+    const input = document.createElement("input");
+    input.className = "climate-temp";
+    input.type = "number";
+    input.min = String(device.capabilities?.setpoint_min ?? (unit === "C" ? 5 : 40));
+    input.max = String(device.capabilities?.setpoint_max ?? (unit === "C" ? 35 : 95));
+    input.step = unit === "C" ? "0.5" : "1";
+    input.value = Number.isFinite(value) ? String(value) : "";
+    input.setAttribute("aria-label", `${label} setpoint (°${unit})`);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "button light-button";
+    button.textContent = `Set ${label.toLowerCase()} °${unit}`;
+    button.addEventListener("click", () =>
+      runClimateAction(device, action, input.value, button)
+    );
+    elements.push(input, button);
+  }
+  return elements;
 }
 
 async function connectAndTest() {
