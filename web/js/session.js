@@ -1,0 +1,373 @@
+// Connection to the controller: first-time access, reconnecting with the saved key, loading
+// and refreshing device state.
+
+import {
+  ApiError,
+  apiCall,
+  clearApiKey,
+  normalizeHost,
+  saveApiKey,
+  saveHost,
+  savedApiKey,
+  savedHost,
+} from "../api-client.js";
+import { t } from "./i18n.js";
+import { KINDS, notify, state } from "./state.js";
+
+const POLL_MS = 10000;
+let pollTimer = null;
+let connectRun = 0;
+
+export function api(path, options = {}) {
+  return apiCall(state.host, path, { apiKey: state.apiKey, ...options });
+}
+
+function clientName() {
+  const platform = navigator.userAgentData?.platform || navigator.platform || "browser";
+  return `C4Bridge web app (${platform})`.slice(0, 64);
+}
+
+export function restoreSaved() {
+  state.host = savedHost();
+  state.apiKey = savedApiKey();
+  state.status = state.host && state.apiKey ? "connecting" : "setup";
+}
+
+// Validates and stores the controller address. A different controller needs a new key.
+export function useHost(value) {
+  const host = normalizeHost(value);
+  if (!host) {
+    throw new ApiError(t("connect.invalidHost"), { code: "INVALID_HOST" });
+  }
+  if (host !== state.host && state.apiKey) {
+    forgetKey();
+  }
+  saveHost(host);
+  state.host = host;
+  return host;
+}
+
+export function forgetKey() {
+  clearApiKey();
+  stopPolling();
+  state.apiKey = "";
+  state.status = "setup";
+  state.loaded = false;
+}
+
+function describeError(error) {
+  if (error?.status === 401) {
+    return t("errors.keyRevoked");
+  }
+  if (error?.code === "REQUEST_PENDING") {
+    return t("errors.requestPending");
+  }
+  if (error?.code === "PAIRING_RATE_LIMITED") {
+    return t("errors.pairingRateLimited");
+  }
+  if (error?.code === "INVALID_PAIRING_CODE" || error?.code === "PAIRING_FAILED" || error?.status === 403) {
+    return error.message || t("errors.pairingRejected");
+  }
+  if (error instanceof ApiError && error.code && /^(PAIRING|REQUEST|INVALID)/.test(error.code)) {
+    return error.message;
+  }
+  if (error?.name === "AbortError") {
+    return t("errors.timeout");
+  }
+  if (error instanceof ApiError && error.status) {
+    return error.message;
+  }
+  return t("errors.unreachable");
+}
+
+export function errorText(error) {
+  return describeError(error);
+}
+
+// Any request answered 401: the key was revoked or C4Bridge was re-added. Start over.
+export function handleUnauthorized() {
+  forgetKey();
+  state.notice = { kind: "error", text: t("errors.keyRevoked") };
+  notify();
+}
+
+// Resources newer drivers add (doors and gates): an older driver answers 404, so show none.
+async function optionalList(path) {
+  try {
+    return (await api(path))?.items || [];
+  } catch (error) {
+    if (error?.status === 401) throw error;
+    return [];
+  }
+}
+
+async function loadAll() {
+  const [system, rooms, lights, thermostats, blinds, cameras, devices, relays] = await Promise.all([
+    api("/v1/system"),
+    api("/v1/rooms"),
+    api("/v1/lights"),
+    api("/v1/thermostats"),
+    api("/v1/blinds"),
+    api("/v1/cameras"),
+    api("/v1/devices").catch(() => ({ items: [] })),
+    optionalList("/v1/relays"),
+  ]);
+  state.system = system;
+  state.rooms = rooms?.items || [];
+  state.lights = lights?.items || [];
+  state.thermostats = thermostats?.items || [];
+  state.blinds = blinds?.items || [];
+  state.cameras = cameras?.items || [];
+  state.devices = devices?.items || [];
+  state.relays = relays;
+  state.lastUpdated = new Date();
+  state.loaded = true;
+}
+
+// Connects with the saved key. Used on start (automatic reconnect) and by Retry.
+export async function connect() {
+  if (!state.host || !state.apiKey) {
+    state.status = "setup";
+    notify();
+    return false;
+  }
+  const run = ++connectRun;
+  state.status = "connecting";
+  notify();
+  try {
+    await loadAll();
+    if (run !== connectRun) return false;
+    state.status = "connected";
+    state.notice = null;
+    startPolling();
+    return true;
+  } catch (error) {
+    if (run !== connectRun) return false;
+    if (error?.status === 401) {
+      handleUnauthorized();
+      return false;
+    }
+    console.error("C4Bridge connection failed", error);
+    state.status = "unreachable";
+    state.notice = { kind: "error", text: describeError(error) };
+    scheduleRetry();
+    return false;
+  } finally {
+    notify();
+  }
+}
+
+// Asks for a key and waits until C4Bridge Access is pressed in the Control4 app (2 minutes).
+export async function requestAccess(hostValue) {
+  state.notice = null;
+  try {
+    const host = useHost(hostValue);
+    state.status = "waiting";
+    notify();
+    const request = await apiCall(host, "/v1/auth/requests", {
+      method: "POST",
+      body: { name: clientName() },
+    });
+    state.access = { id: request.id, host, expiresAt: request.expires_at, cancelled: false };
+    notify();
+    while (state.access && !state.access.cancelled) {
+      await sleep(2000);
+      if (!state.access || state.access.cancelled) break;
+      let current;
+      try {
+        current = await apiCall(host, `/v1/auth/requests/${request.id}`);
+      } catch (error) {
+        if (error.status === 404) {
+          throw new ApiError(t("errors.requestExpired"), { code: "REQUEST_EXPIRED" });
+        }
+        throw error;
+      }
+      if (current.status === "approved" && current.api_key?.key) {
+        saveApiKey(current.api_key.key);
+        state.apiKey = current.api_key.key;
+        state.access = null;
+        return connect();
+      }
+      state.access = { ...state.access, expiresAt: current.expires_at };
+    }
+    state.notice = { kind: "info", text: t("connect.cancelled") };
+    return false;
+  } catch (error) {
+    state.notice = { kind: "error", text: describeError(error) };
+    return false;
+  } finally {
+    state.access = null;
+    if (state.status === "waiting") {
+      state.status = "setup";
+    }
+    notify();
+  }
+}
+
+export async function cancelAccess() {
+  const access = state.access;
+  if (!access) {
+    return;
+  }
+  access.cancelled = true;
+  state.access = null;
+  notify();
+  try {
+    await apiCall(access.host, `/v1/auth/requests/${access.id}`, { method: "DELETE" });
+  } catch {
+    // Already expired or approved; nothing to undo.
+  }
+}
+
+// Fallback: the 8-digit pairing code shown in Composer.
+export async function pairWithCode(hostValue, pairingCode) {
+  const code = String(pairingCode || "").trim();
+  if (!/^\d{8}$/.test(code)) {
+    state.notice = { kind: "error", text: t("connect.codeInvalid") };
+    notify();
+    return false;
+  }
+  try {
+    const host = useHost(hostValue);
+    state.status = "connecting";
+    state.notice = null;
+    notify();
+    const created = await apiCall(host, "/v1/auth/pair", {
+      method: "POST",
+      body: { pairing_code: code, name: clientName() },
+    });
+    if (!created?.key) {
+      throw new ApiError(t("errors.noKey"), { code: "PAIRING_NO_KEY" });
+    }
+    saveApiKey(created.key);
+    state.apiKey = created.key;
+    return connect();
+  } catch (error) {
+    state.status = "setup";
+    state.notice = { kind: "error", text: describeError(error) };
+    notify();
+    return false;
+  }
+}
+
+const sleep = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+// Device state, every 10 s while the page is visible. Devices with a command in flight keep
+// their optimistic state until the command is confirmed.
+export async function refreshDevices() {
+  if (!state.apiKey || !state.host) return;
+  try {
+    const kinds = ["light", "thermostat", "blind"];
+    const results = await Promise.all(kinds.map((kind) => api(KINDS[kind].path)));
+    kinds.forEach((kind, index) => {
+      const listName = KINDS[kind].list;
+      const fresh = results[index]?.items || [];
+      state[listName] = fresh.map((device) => {
+        const pending = state.pending[`${kind}:${device.id}`];
+        return pending ? state[listName].find((item) => item.id === device.id) || device : device;
+      });
+    });
+    state.lastUpdated = new Date();
+    if (state.status !== "connected") {
+      state.status = "connected";
+      state.notice = null;
+    }
+  } catch (error) {
+    if (error?.status === 401) {
+      handleUnauthorized();
+      return;
+    }
+    state.status = "unreachable";
+    state.notice = { kind: "error", text: describeError(error) };
+  }
+  notify();
+}
+
+// Rooms and cameras change rarely (renames, new devices); refreshed now and then.
+export async function refreshRooms() {
+  try {
+    const [rooms, cameras, relays] = await Promise.all([api("/v1/rooms"), api("/v1/cameras"), optionalList("/v1/relays")]);
+    state.rooms = rooms?.items || state.rooms;
+    state.cameras = cameras?.items || state.cameras;
+    state.relays = relays;
+    notify();
+  } catch {
+    // The next device refresh reports connection problems.
+  }
+}
+
+let pollCount = 0;
+
+function schedulePoll(delay = POLL_MS) {
+  window.clearTimeout(pollTimer);
+  pollTimer = window.setTimeout(poll, delay);
+}
+
+async function poll() {
+  pollTimer = null;
+  if (!state.apiKey) return;
+  if (!document.hidden) {
+    if (!state.loaded) {
+      await connect();
+      return;
+    }
+    await refreshDevices();
+    pollCount += 1;
+    if (pollCount % 6 === 0 && state.status === "connected") {
+      await refreshRooms();
+    }
+  }
+  if (state.apiKey) schedulePoll();
+}
+
+export function startPolling() {
+  schedulePoll();
+}
+
+export function stopPolling() {
+  window.clearTimeout(pollTimer);
+  pollTimer = null;
+}
+
+function scheduleRetry() {
+  if (state.apiKey) schedulePoll(POLL_MS);
+}
+
+// Back on the page: refresh at once instead of waiting for the next tick.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && state.apiKey && (state.status === "connected" || state.status === "unreachable")) {
+    if (state.loaded) {
+      refreshDevices().then(() => state.apiKey && schedulePoll());
+    } else {
+      connect();
+    }
+  }
+});
+
+// Settings → Controller → Forget key: revokes this browser's key on the controller when it can
+// be reached (so the key stops working everywhere), then removes it from this browser.
+export async function revokeAndForget() {
+  if (state.host && state.apiKey) {
+    try {
+      const keys = await api("/v1/api-keys", { timeoutMs: 4000 });
+      const mine = keys?.items?.find((item) => item.current);
+      if (mine) {
+        await api(`/v1/api-keys/${mine.id}`, { method: "DELETE", timeoutMs: 4000 });
+      }
+    } catch {
+      // Unreachable or already revoked: forgetting it here is still what was asked.
+    }
+  }
+  forgetKey();
+  notify();
+}
+
+// Room names per language (PATCH /v1/rooms/{id}). Older drivers answer 404/405.
+export async function saveRoomNames(roomId, names) {
+  const room = await api(`/v1/rooms/${roomId}`, { method: "PATCH", body: { names } });
+  state.rooms = state.rooms.map((item) =>
+    item.id === Number(roomId) ? { ...item, ...(room && typeof room === "object" ? room : {}), names: room?.names || Object.fromEntries(Object.entries(names).filter(([, value]) => value)) } : item
+  );
+  notify();
+  return room;
+}
