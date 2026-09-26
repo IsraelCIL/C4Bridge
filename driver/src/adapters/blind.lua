@@ -27,9 +27,9 @@ local WATCHED = {
 
 local LEVEL_OPEN = 100
 local LEVEL_CLOSED = 0
--- Motors that haven't reported a position (or have failed) show Level as
--- -9999 or 9999; report that as unknown rather than as a level.
-local LEVEL_UNKNOWN_MARKER = 9999
+-- Motors that haven't reported a position (after a Director restart, or
+-- when failed) show Level as -9999 / 9999, and blind groups as -1. Anything
+-- outside 0-100 is reported as unknown rather than as a level.
 
 local tracked = {}
 
@@ -65,9 +65,8 @@ local function refresh(device)
     local opening = boolValue(raw[VARIABLE_OPENING])
     local closing = boolValue(raw[VARIABLE_CLOSING])
 
-    local rawLevel = tonumber(raw[VARIABLE_LEVEL])
-    device.state.position_known = rawLevel ~= nil and math.abs(rawLevel) ~= LEVEL_UNKNOWN_MARKER
-    device.state.level = device.state.position_known and clampPercent(rawLevel) or nil
+    device.state.level = clampPercent(raw[VARIABLE_LEVEL])
+    device.state.position_known = device.state.level ~= nil
     device.state.target_level = clampPercent(raw[VARIABLE_TARGET_LEVEL])
     device.state.fully_open = boolValue(raw[VARIABLE_FULLY_OPEN])
     device.state.fully_closed = boolValue(raw[VARIABLE_FULLY_CLOSED])
