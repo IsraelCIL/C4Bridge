@@ -213,6 +213,13 @@ local function climateList()
     }
 end
 
+local function coverList()
+    return {
+        ok = true,
+        covers = config.registry.coverList(),
+    }
+end
+
 local function diagnosticsList()
     local entries = {}
     if config.diagnostics and config.diagnostics.list then
@@ -231,6 +238,7 @@ local GET_ROUTES = {
     ["/v1/devices"] = deviceList,
     ["/v1/lights"] = lightList,
     ["/v1/climate"] = climateList,
+    ["/v1/covers"] = coverList,
     ["/v1/diagnostics"] = diagnosticsList,
 }
 
@@ -298,7 +306,7 @@ local function actionErrorStatus(error)
     if code == "DEVICE_NOT_SUPPORTED" or code == "ACTION_NOT_SUPPORTED" then
         return 409
     end
-    if code == "INVALID_BRIGHTNESS" or code == "INVALID_HVAC_MODE" or code == "INVALID_FAN_MODE" or code == "INVALID_TEMPERATURE" then
+    if code == "INVALID_BRIGHTNESS" or code == "INVALID_HVAC_MODE" or code == "INVALID_FAN_MODE" or code == "INVALID_TEMPERATURE" or code == "INVALID_LEVEL" then
         return 400
     end
     if code == "HVAC_MODE_NOT_SUPPORTED" then

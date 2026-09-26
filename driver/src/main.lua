@@ -219,6 +219,7 @@ function OnDriverLateInit(driverInitType)
     updateProperty("Discovery Summary", discoverySummary())
     updateProperty("Supported Lights", adapterCounts.light)
     updateProperty("Supported Climate", adapterCounts.climate)
+    updateProperty("Supported Covers", adapterCounts.cover)
     local pairingOk, pairingError = Pairing.initialize({
         updateProperty = updateProperty,
         log = log,

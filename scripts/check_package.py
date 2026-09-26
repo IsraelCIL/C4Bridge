@@ -120,6 +120,21 @@ def check_light_adapter():
         if token not in source:
             fail(f"Light V2 adapter missing required contract: {token}")
 
+    blind_path = DRIVER / "src" / "adapters" / "blind.lua"
+    if not blind_path.is_file():
+        fail("Blind adapter is missing")
+
+    blind = blind_path.read_text(encoding="utf-8")
+    for token in (
+        'driver == "blind.c4i"',
+        "VARIABLE_LEVEL = 1004",
+        'send(device.id, "SET_LEVEL_TARGET", { LEVEL_TARGET = target })',
+        'send(device.id, "STOP")',
+        "C4:RegisterVariableListener",
+    ):
+        if token not in blind:
+            fail(f"Blind adapter missing required contract: {token}")
+
     climate_path = DRIVER / "src" / "adapters" / "thermostat_v2.lua"
     if not climate_path.is_file():
         fail("Thermostat V2 adapter is missing")
