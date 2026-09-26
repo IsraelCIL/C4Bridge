@@ -11,6 +11,10 @@ function Classifier.classify(driverFileName)
         return { kind = "light", recognized = true }
     end
 
+    if name == "fan.c4i" then
+        return { kind = "fan", recognized = true }
+    end
+
     if name == "thermostatv2.c4i" or name == "thermostatv2.c4z" then
         return { kind = "climate", recognized = true }
     end

@@ -26,6 +26,9 @@ const refreshLightsButton = document.querySelector("#refresh-lights-button");
 const climateList = document.querySelector("#climate-list");
 const climateActionMessage = document.querySelector("#climate-action-message");
 const refreshClimateButton = document.querySelector("#refresh-climate-button");
+const fanList = document.querySelector("#fan-list");
+const fanActionMessage = document.querySelector("#fan-action-message");
+const refreshFansButton = document.querySelector("#refresh-fans-button");
 
 let installPrompt = null;
 let activeSession = null;
@@ -175,6 +178,7 @@ function renderSummary(info) {
     ["Recognized", info.discovery?.recognized],
     ["Lights", info.discovery?.supported_lights],
     ["Climate", info.discovery?.supported_climate],
+    ["Fans", info.discovery?.supported_fans],
   ];
 
   resultSummary.replaceChildren(
@@ -624,12 +628,117 @@ function renderClimate(devices) {
   }
 }
 
+const FAN_SPEED_LABELS = ["Off", "Low", "Medium", "Medium High", "High"];
+
+function setFanMessage(message, type = "") {
+  fanActionMessage.textContent = message;
+  fanActionMessage.className = "form-message";
+  if (type) fanActionMessage.classList.add(type);
+}
+
+function fanStateLabel(device) {
+  if (!device.state?.power) return "Off";
+  const speed = Number(device.state?.speed);
+  return Number.isFinite(speed) && FAN_SPEED_LABELS[speed] ? `On · ${FAN_SPEED_LABELS[speed]}` : "On";
+}
+
+async function refreshFans(showMessage = false) {
+  if (!activeSession) return [];
+  const response = await apiRequest(activeSession.host, activeSession.token, "/v1/fans");
+  const devices = Array.isArray(response.fans) ? response.fans : [];
+  renderFans(devices);
+  if (showMessage) setFanMessage(`Refreshed ${devices.length} fans.`, "success");
+  return devices;
+}
+
+async function runFanAction(device, action, value, control) {
+  if (!activeSession) {
+    setFanMessage("Connect to Director first.", "error");
+    return;
+  }
+  if (control) control.disabled = true;
+  setFanMessage(`Sending fan command to ${device.name}…`);
+  try {
+    const query = value === undefined ? "" : `?value=${encodeURIComponent(value)}`;
+    await apiRequest(
+      activeSession.host,
+      activeSession.token,
+      `/v1/devices/${device.id}/actions/${action}${query}`,
+      { method: "POST" }
+    );
+    await new Promise((resolve) => window.setTimeout(resolve, 800));
+    await refreshFans(false);
+    setFanMessage(`${device.name}: command sent to Director.`, "success");
+  } catch (error) {
+    setFanMessage(`${device.name}: ${error.message || "fan command failed"}`, "error");
+  } finally {
+    if (control) control.disabled = false;
+  }
+}
+
+function renderFans(devices) {
+  fanList.replaceChildren();
+  if (!devices.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No supported Fan devices were initialized.";
+    fanList.append(empty);
+    return;
+  }
+
+  for (const device of devices) {
+    const row = document.createElement("div");
+    row.className = "climate-row";
+
+    const identity = document.createElement("div");
+    identity.className = "light-identity";
+    const name = document.createElement("strong");
+    name.textContent = text(device.name, `Fan ${device.id}`);
+    const meta = document.createElement("small");
+    meta.textContent = [device.room_name || null, `ID ${device.id}`].filter(Boolean).join(" · ");
+    const state = document.createElement("span");
+    state.className = "light-state";
+    state.textContent = fanStateLabel(device);
+    identity.append(name, meta, state);
+
+    const controls = document.createElement("div");
+    controls.className = "climate-controls";
+
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "button light-button";
+    toggle.textContent = device.state?.power ? "Turn off" : "Turn on";
+    toggle.addEventListener("click", () =>
+      runFanAction(device, device.state?.power ? "off" : "on", undefined, toggle)
+    );
+
+    const speedSelect = document.createElement("select");
+    speedSelect.className = "climate-select";
+    const maxSpeed = Number(device.capabilities?.max_speed) || 4;
+    for (let speed = 1; speed <= maxSpeed; speed += 1) {
+      const option = document.createElement("option");
+      option.value = String(speed);
+      option.textContent = FAN_SPEED_LABELS[speed] || `Speed ${speed}`;
+      option.selected = Number(device.state?.speed) === speed;
+      speedSelect.append(option);
+    }
+    speedSelect.addEventListener("change", () =>
+      runFanAction(device, "set_speed", speedSelect.value, speedSelect)
+    );
+
+    controls.append(toggle, speedSelect);
+    row.append(identity, controls);
+    fanList.append(row);
+  }
+}
+
 async function connectAndTest() {
   projectResult.classList.add("hidden");
   connectButton.disabled = true;
   setDirectorMessage("");
   setLightMessage("");
   setClimateMessage("");
+  setFanMessage("");
   setConnectionState(
     "Connecting to Director…",
     "Chrome may ask for Local Network Access permission.",
@@ -660,11 +769,12 @@ async function connectAndTest() {
 
     const info = await apiRequest(host, token, "/v1/system/info");
 
-    const [roomsResponse, devicesResponse, lightsResponse, climateResponse] = await Promise.all([
+    const [roomsResponse, devicesResponse, lightsResponse, climateResponse, fansResponse] = await Promise.all([
       apiRequest(host, token, "/v1/rooms"),
       apiRequest(host, token, "/v1/devices"),
       apiRequest(host, token, "/v1/lights"),
       apiRequest(host, token, "/v1/climate"),
+      apiRequest(host, token, "/v1/fans"),
     ]);
 
     const rooms = Array.isArray(roomsResponse.rooms) ? roomsResponse.rooms : [];
@@ -677,18 +787,20 @@ async function connectAndTest() {
     const climate = Array.isArray(climateResponse.climate)
       ? climateResponse.climate
       : [];
+    const fans = Array.isArray(fansResponse.fans) ? fansResponse.fans : [];
 
     connectedVersion.textContent = `v${text(info.bridge?.version, "?")}`;
     renderSummary(info);
     renderLights(lights);
     renderClimate(climate);
+    renderFans(fans);
     renderRooms(rooms);
     renderDevices(devices);
     projectResult.classList.remove("hidden");
 
     setConnectionState(
       "Connected to C4Bridge",
-      `${rooms.length} rooms, ${devices.length} normalized devices, ${lights.length} lights, and ${climate.length} climate devices returned directly from Director.`,
+      `${rooms.length} rooms, ${devices.length} normalized devices, ${lights.length} lights, ${climate.length} climate devices, and ${fans.length} fans returned directly from Director.`,
       "Connected"
     );
     setDirectorMessage("Director connection succeeded.", "success");
@@ -746,6 +858,18 @@ refreshClimateButton.addEventListener("click", async () => {
     setClimateMessage(error.message || "Unable to refresh climate state.", "error");
   } finally {
     refreshClimateButton.disabled = false;
+  }
+});
+
+refreshFansButton.addEventListener("click", async () => {
+  refreshFansButton.disabled = true;
+  setFanMessage("Refreshing fan state…");
+  try {
+    await refreshFans(true);
+  } catch (error) {
+    setFanMessage(error.message || "Unable to refresh fan state.", "error");
+  } finally {
+    refreshFansButton.disabled = false;
   }
 });
 

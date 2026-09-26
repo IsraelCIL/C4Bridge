@@ -202,6 +202,24 @@
             <div id="climate-list" class="climate-list"></div>
           </article>
 
+          <article class="panel result-panel climate-panel fan-panel">
+            <div class="lights-heading">
+              <div>
+                <p class="eyebrow">FANS</p>
+                <h2>Fans</h2>
+                <p class="panel-note">
+                  Live Fan proxy state from Director. On/off and speed use the fan
+                  proxy's own ON, OFF and SET_SPEED commands.
+                </p>
+              </div>
+              <button id="refresh-fans-button" class="button button-secondary" type="button">
+                Refresh fans
+              </button>
+            </div>
+            <p id="fan-action-message" class="form-message" role="status" aria-live="polite"></p>
+            <div id="fan-list" class="climate-list"></div>
+          </article>
+
           <div class="result-columns">
             <article class="panel result-panel">
               <h2>Rooms</h2>
