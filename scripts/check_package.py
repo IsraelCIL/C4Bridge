@@ -120,6 +120,25 @@ def check_light_adapter():
         if token not in source:
             fail(f"Light V2 adapter missing required contract: {token}")
 
+    security_path = DRIVER / "src" / "adapters" / "security.lua"
+    if not security_path.is_file():
+        fail("Security adapter is missing")
+
+    security = security_path.read_text(encoding="utf-8")
+    for token in (
+        'driver == "security.c4i"',
+        "VARIABLE_PARTITION_STATE = 1007",
+        "device.actions = {}",
+        "C4:RegisterVariableListener",
+    ):
+        if token not in security:
+            fail(f"Security adapter missing required contract: {token}")
+    # V1 must not send arm/disarm commands (alarm codes over plain HTTP).
+    code = "\n".join(line.split("--", 1)[0] for line in security.splitlines())
+    for forbidden in ("PARTITION_ARM", "PARTITION_DISARM", "C4:SendToDevice"):
+        if forbidden in code:
+            fail(f"Security adapter must stay read-only; found {forbidden}")
+
     climate_path = DRIVER / "src" / "adapters" / "thermostat_v2.lua"
     if not climate_path.is_file():
         fail("Thermostat V2 adapter is missing")

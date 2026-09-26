@@ -26,6 +26,9 @@ const refreshLightsButton = document.querySelector("#refresh-lights-button");
 const climateList = document.querySelector("#climate-list");
 const climateActionMessage = document.querySelector("#climate-action-message");
 const refreshClimateButton = document.querySelector("#refresh-climate-button");
+const securityList = document.querySelector("#security-list");
+const securityActionMessage = document.querySelector("#security-action-message");
+const refreshSecurityButton = document.querySelector("#refresh-security-button");
 
 let installPrompt = null;
 let activeSession = null;
@@ -175,6 +178,7 @@ function renderSummary(info) {
     ["Recognized", info.discovery?.recognized],
     ["Lights", info.discovery?.supported_lights],
     ["Climate", info.discovery?.supported_climate],
+    ["Security", info.discovery?.supported_security],
   ];
 
   resultSummary.replaceChildren(
@@ -624,12 +628,69 @@ function renderClimate(devices) {
   }
 }
 
+function setSecurityMessage(message, type = "") {
+  securityActionMessage.textContent = message;
+  securityActionMessage.className = "form-message";
+  if (type) securityActionMessage.classList.add(type);
+}
+
+function securityStateLabel(device) {
+  const s = device.state || {};
+  const parts = [];
+  if (s.alarm) parts.push(`ALARM${s.alarm_type ? ` (${s.alarm_type})` : ""}`);
+  if (s.armed) parts.push(`Armed ${s.armed_mode || ""}`.trim());
+  else if (s.disarmed) parts.push("Disarmed");
+  if (s.partition_state) parts.push(String(s.partition_state).toLowerCase().replace(/_/g, " "));
+  if (Number(s.open_zones) > 0) parts.push(`${s.open_zones} open zone${Number(s.open_zones) === 1 ? "" : "s"}`);
+  if (Number(s.delay_remaining) > 0) parts.push(`delay ${s.delay_remaining}s`);
+  if (s.trouble) parts.push(`trouble: ${s.trouble}`);
+  return parts.join(" · ") || "State unavailable";
+}
+
+async function refreshSecurity(showMessage = false) {
+  if (!activeSession) return [];
+  const response = await apiRequest(activeSession.host, activeSession.token, "/v1/security");
+  const devices = Array.isArray(response.security) ? response.security : [];
+  renderSecurity(devices);
+  if (showMessage) setSecurityMessage(`Refreshed ${devices.length} partitions.`, "success");
+  return devices;
+}
+
+function renderSecurity(devices) {
+  securityList.replaceChildren();
+  if (!devices.length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No active security partitions were found.";
+    securityList.append(empty);
+    return;
+  }
+
+  for (const device of devices) {
+    const row = document.createElement("div");
+    row.className = "climate-row";
+    const identity = document.createElement("div");
+    identity.className = "light-identity";
+    const name = document.createElement("strong");
+    name.textContent = text(device.name, `Partition ${device.id}`);
+    const meta = document.createElement("small");
+    meta.textContent = [device.room_name || null, `ID ${device.id}`].filter(Boolean).join(" · ");
+    const state = document.createElement("span");
+    state.className = "light-state";
+    state.textContent = securityStateLabel(device);
+    identity.append(name, meta, state);
+    row.append(identity);
+    securityList.append(row);
+  }
+}
+
 async function connectAndTest() {
   projectResult.classList.add("hidden");
   connectButton.disabled = true;
   setDirectorMessage("");
   setLightMessage("");
   setClimateMessage("");
+  setSecurityMessage("");
   setConnectionState(
     "Connecting to Director…",
     "Chrome may ask for Local Network Access permission.",
@@ -660,11 +721,12 @@ async function connectAndTest() {
 
     const info = await apiRequest(host, token, "/v1/system/info");
 
-    const [roomsResponse, devicesResponse, lightsResponse, climateResponse] = await Promise.all([
+    const [roomsResponse, devicesResponse, lightsResponse, climateResponse, securityResponse] = await Promise.all([
       apiRequest(host, token, "/v1/rooms"),
       apiRequest(host, token, "/v1/devices"),
       apiRequest(host, token, "/v1/lights"),
       apiRequest(host, token, "/v1/climate"),
+      apiRequest(host, token, "/v1/security"),
     ]);
 
     const rooms = Array.isArray(roomsResponse.rooms) ? roomsResponse.rooms : [];
@@ -677,11 +739,13 @@ async function connectAndTest() {
     const climate = Array.isArray(climateResponse.climate)
       ? climateResponse.climate
       : [];
+    const security = Array.isArray(securityResponse.security) ? securityResponse.security : [];
 
     connectedVersion.textContent = `v${text(info.bridge?.version, "?")}`;
     renderSummary(info);
     renderLights(lights);
     renderClimate(climate);
+    renderSecurity(security);
     renderRooms(rooms);
     renderDevices(devices);
     projectResult.classList.remove("hidden");
@@ -746,6 +810,18 @@ refreshClimateButton.addEventListener("click", async () => {
     setClimateMessage(error.message || "Unable to refresh climate state.", "error");
   } finally {
     refreshClimateButton.disabled = false;
+  }
+});
+
+refreshSecurityButton.addEventListener("click", async () => {
+  refreshSecurityButton.disabled = true;
+  setSecurityMessage("Refreshing security status…");
+  try {
+    await refreshSecurity(true);
+  } catch (error) {
+    setSecurityMessage(error.message || "Unable to refresh security status.", "error");
+  } finally {
+    refreshSecurityButton.disabled = false;
   }
 });
 
