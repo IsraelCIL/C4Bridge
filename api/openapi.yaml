@@ -292,6 +292,17 @@ paths:
                 $ref: "#/components/schemas/ApiKey"
         "401":
           $ref: "#/components/responses/Unauthorized"
+    delete:
+      tags: [Auth]
+      operationId: revokeCurrentApiKey
+      x-c4bridge-role: viewer
+      summary: Revoke the API key used for this request
+      description: Lets any client forget itself, whatever its role; later requests with the key get 401.
+      responses:
+        "204":
+          description: Revoked.
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /v1/api-keys/{keyId}:
     parameters:

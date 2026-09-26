@@ -218,8 +218,10 @@ def scenario(client, pairing_code):
     client.check("PATCH", "/v1/lights/20", 403, body={"on": True})
     client.check("POST", "/v1/relays/70/pulse", 403)
     client.check("GET", "/v1/api-keys", 403)
+    client.check("DELETE", "/v1/api-keys/current", 204)
+    client.check("GET", "/v1/lights", 401)
     client.key = admin_key
-    client.check("DELETE", f"/v1/api-keys/{created['id']}", 204)
+    client.check("DELETE", f"/v1/api-keys/{created['id']}", 404)
     client.check("DELETE", "/v1/api-keys/deadbeef", 404)
 
     client.check("PATCH", "/v1/logs/settings", 200, body={"level": "debug"})

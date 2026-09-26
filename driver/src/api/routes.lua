@@ -14,6 +14,7 @@ return {
     { method = "GET", path = "/v1/api-keys", handler = "auth.list_keys", role = "admin" },
     { method = "POST", path = "/v1/api-keys", handler = "auth.create_key", role = "admin" },
     { method = "GET", path = "/v1/api-keys/current", handler = "auth.current_key", role = "viewer" },
+    { method = "DELETE", path = "/v1/api-keys/current", handler = "auth.revoke_current_key", role = "viewer" },
     { method = "PATCH", path = "/v1/api-keys/{keyId}", handler = "auth.update_key", role = "admin" },
     { method = "DELETE", path = "/v1/api-keys/{keyId}", handler = "auth.delete_key", role = "admin" },
 

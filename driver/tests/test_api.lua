@@ -509,6 +509,10 @@ function tests.roles_limit_what_a_key_can_do()
     T.eq(me.role, "viewer")
     T.eq(me.current, true)
     T.eq(me.key, nil, "the secret is never shown again")
+    -- any key may revoke itself, but not others
+    T.eq(status("DELETE", "/v1/api-keys/current", viewer), 204)
+    T.eq(status("GET", "/v1/lights", viewer), 401)
+    T.eq(status("GET", "/v1/lights", member), 200)
 end
 
 function tests.admins_change_roles_but_keep_one_admin()

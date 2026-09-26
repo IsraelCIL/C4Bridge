@@ -208,6 +208,15 @@ function Auth.current_key(ctx)
     return 200, Views.apiKey(record, ctx.apiKey.id)
 end
 
+-- Any key may revoke itself ("forget this device"), whatever its role.
+function Auth.revoke_current_key(ctx)
+    local id = ctx.apiKey.id
+    ctx.services.keys.revoke(id)
+    ctx.services.log.info("auth", "API key revoked by its own client", { key_id = id })
+    ctx.services.onKeysChanged()
+    return 204, nil
+end
+
 function Auth.update_key(ctx)
     local body = ctx.body
     local problem = Validate.body(body, { name = true, role = true }, true)
