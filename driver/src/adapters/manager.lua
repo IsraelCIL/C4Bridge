@@ -1,9 +1,11 @@
+local LightV1 = require("src.adapters.light_v1")
 local LightV2 = require("src.adapters.light_v2")
 local ThermostatV2 = require("src.adapters.thermostat_v2")
 
 local Manager = {}
 
 local adapters = {
+    LightV1,
     LightV2,
     ThermostatV2,
 }
