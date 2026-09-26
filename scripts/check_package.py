@@ -48,6 +48,19 @@ def check_xml():
     if minimum != "3.3.0":
         fail(f"minimum_os_version must be 3.3.0, got {minimum!r}")
 
+    # Director only hot-reloads the driver on Composer "Update Driver" with
+    # the conventional DriverWorks structure (see issues #8 / #21): no XML
+    # declaration, a named combo proxy, and capabilities/connections/events.
+    raw = path.read_text(encoding="utf-8")
+    if raw.lstrip().startswith("<?xml"):
+        fail("driver.xml must not start with an XML declaration")
+    proxy = root.find("./proxies/proxy")
+    if proxy is None or not proxy.attrib.get("name"):
+        fail("driver.xml combo proxy must declare a name attribute")
+    for tag in ("capabilities", "connections", "events"):
+        if root.find(tag) is None:
+            fail(f"driver.xml must declare <{tag}>")
+
     auto_update = root.findtext("auto_update")
     if auto_update != "false":
         fail("V1 must keep auto_update=false")
