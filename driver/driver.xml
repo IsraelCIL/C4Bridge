@@ -1,4 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <devicedata>
   <copyright>Copyright 2026 C4Bridge contributors</copyright>
   <manufacturer>C4Bridge</manufacturer>
@@ -129,7 +128,10 @@
   </config>
 
   <combo>true</combo>
-  <proxies>
-    <proxy>C4Bridge</proxy>
+  <proxies qty="1">
+    <proxy name="C4Bridge">C4Bridge</proxy>
   </proxies>
+  <capabilities/>
+  <connections/>
+  <events/>
 </devicedata>
