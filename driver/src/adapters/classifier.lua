@@ -7,7 +7,7 @@ end
 function Classifier.classify(driverFileName)
     local name = normalizedDriverName(driverFileName)
 
-    if name == "light_v2.c4i" or name == "light_v2.c4z" then
+    if name == "light.c4i" or name == "light_v2.c4i" or name == "light_v2.c4z" then
         return { kind = "light", recognized = true }
     end
 

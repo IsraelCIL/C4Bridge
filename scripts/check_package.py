@@ -120,6 +120,23 @@ def check_light_adapter():
         if token not in source:
             fail(f"Light V2 adapter missing required contract: {token}")
 
+    v1_path = DRIVER / "src" / "adapters" / "light_v1.lua"
+    if not v1_path.is_file():
+        fail("Light V1 adapter is missing")
+
+    v1 = v1_path.read_text(encoding="utf-8")
+    for token in (
+        'driver == "light.c4i"',
+        "VARIABLE_STATE = 1000",
+        "VARIABLE_LEVEL = 1001",
+        'send(device.id, "ON")',
+        'send(device.id, "OFF")',
+        'send(device.id, "SET_LEVEL", { LEVEL = target })',
+        "C4:RegisterVariableListener",
+    ):
+        if token not in v1:
+            fail(f"Light V1 adapter missing required contract: {token}")
+
     climate_path = DRIVER / "src" / "adapters" / "thermostat_v2.lua"
     if not climate_path.is_file():
         fail("Thermostat V2 adapter is missing")
